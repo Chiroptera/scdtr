@@ -1,7 +1,12 @@
 // this constant won't change.  It's the pin number
 // of the sensor's output:
-const int proxSensor = 5;
-const int tempSensor = 4;
+/**********************************************************
+*                     Connections                         *
+**********************************************************/
+#define LDRpin A0	//input pin for the LDR sensor
+#define proxSensor 5    //input pin fo the proximity sensr
+#define tempSensor 4     //input pin for he temperature sensor
+
 const int ledLight = 6;
 
 const int LedPresence = 3;       // select the pin for the LED that detects presence
@@ -17,10 +22,7 @@ const int bluePin = 11;
 const int pushbutton1 = 12;
 const int pushbutton2 = 13;
 
-
-
 //definitions for the LDR
-#define LDRpin A0	//input pin for the LDR sensor
 #define VoltDiv 10000	//resistance used with the LDR for the voltage divisor
 #define LDRvcc 5	//voltage used to supply the voltage divisor
 #define LDR_uplimit 20000
@@ -34,12 +36,48 @@ float LDRVolt =0;	// LDR tension
 float LDRes=0;		// LDR resistance
 
 
+/**********************************************************
+*                     PID variables                       *
+**********************************************************/
+unsigned long pid_lastTime; //for constant sample time assurance
+int pid_sampleTime = 10;
+double pid_y, pid_u; //input reading and output value
+double pid_ref; //reference
+double pid_errorSum, pid_lastError; //error sum and previous erros for integral and derivative components
+double pid_kp, pid_ki, pid_kd; //proportional, integral and derivative variables
+
+
+void pid(){
+  //pid_y=analogRead(PIN_Y);
+  
+  unsigned long now = millis();
+  double timeChange = (double) (now - pid_lastTime);
+  if (timeChange < pid_sampleTime) return; //don't compute output if sample time has not been reached
+    
+  double error = pid_ref - pid_y; //compute current error
+  pid_errorSum += (error * pid_sampleTime); //error's integral
+  errorDerivative = (error - pid_lastError) / pid_sampleTime; //error's derivative
+  
+  pid_u = pid_kp * error + pid_ki * pid_errorSum + pid_kd * errorDerivative;
+  
+  pid_lastError=eror;
+  pid_lastTime=now;
+  
+  //map pid_u
+  //analogWrite(PIN_U,pid_u)
+
+}
+
+
+
+
+
 
 void setup() {
   // initialize serial communication:
   pinMode(proxSensor, INPUT);
   pinMode(LedPresence, OUTPUT);
-  pinMode(ledLight, OUTPUT); 
+  pinMode(t, OUTPUT); 
 
   pinMode(pushbutton1, OUTPUT);
   pinMode(pushbutton2, OUTPUT);
