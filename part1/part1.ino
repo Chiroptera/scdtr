@@ -1,44 +1,85 @@
-// this constant won't change.  It's the pin number
-// of the sensor's output:
-/**********************************************************
-*                     Connections                         *
-**********************************************************/
-#define LDRpin A0	//input pin for the LDR sensor
-#define proxSensor 5    //input pin fo the proximity sensr
-#define tempSensor 4     //input pin for he temperature sensor
-
-const int ledLight = 6;
-
-const int LedPresence = 3;       // select the pin for the LED that detects presence
-const int LedTemperature = 4;       // select the pin for the LED that detects temperatures above 50ºC
-
-const int potentiometerFanPin = A1;
-const int potentiometerLEDPin = A2;
+              /*********************************************************
+              **********************************************************
+              *****                                                *****
+              *****                VARIABES                        *****
+              *****                                                *****
+              **********************************************************
+              **********************************************************
+              *********************************************************/
 
 const int redPin = 9;
 const int greenPin = 10;
 const int bluePin = 11;
 
+/**********************************************************
+*                    OPERATION MODES
+**********************************************************/
 const int pushbutton1 = 12;
 const int pushbutton2 = 13;
 
-//definitions for the LDR
-#define VoltDiv 10000	//resistance used with the LDR for the voltage divisor
-#define LDRvcc 5	//voltage used to supply the voltage divisor
-#define LDR_uplimit 20000
-#define LDR_downlimit 10000
+/**********************************************************
+*                    LUMINAIRE
+**********************************************************/
+const int ledLight = 6;
+const int potentiometerLEDPin = A2;
+int luminaireValue;
 
-#define ledLightLow 8	//pin for LED for light off
-#define ledLightHigh 7	//pin for LED for light on
+/**********************************************************
+*                    FAN
+**********************************************************/
 
-int LDRValue = 0;	// variable to store the value coming from the sensor
-float LDRVolt =0;	// LDR tension
-float LDRes=0;		// LDR resistance
+const int fanPin = 5;
+const int potentiometerFanPin = A1;
+
+/**********************************************************
+*                    LDR
+**********************************************************/
+const int LDRpin = A0          //input pin for the LDR sensor
+
+const int ledLightLow 8        //pin for LED for light off
+const int ledLightHigh 7       //pin for LED for light on
+
+const int VoltDiv 10000        //resistance used with the LDR for the voltage divisor
+const int LDRvcc 5             //voltage used to supply the voltage divisor
+const int LDR_uplimit 20000
+const int LDR_downlimit 10000
+
+int LDRValue = 0;              // variable to store the value coming from the sensor
+float LDRVolt =0;              // LDR tension
+float LDRes=0;                 // LDR resistance
+
+/**********************************************************
+*                    PROXIMITY
+**********************************************************/
+const int proxSensor = A5;                   //input pin fo the proximity sensor
+const int LedPresence = 3;                   // select the pin for the LED that detects presence
+
+const int proximityNumReadings=5;            // number of readings to compute moving average
+int proximityReadings[proximityNumReadings]; // the readings from the analog input
+int proximityIndex = 0;                      // the index of the current reading
+int proximityTotal = 0;                      // the running total
+int proximityAverage = 0;                    // the average
 
 
 /**********************************************************
-*                     PID variables                       *
+*                    TEMPERATURE
 **********************************************************/
+const int tempSensor = A4                      //input pin for he temperature sensor
+const int LedTemperature = 4;                // select the pin for the LED that detects temperatures above 50ºC
+
+const int tempNumReadings=5;                 // number of readings to compute moving average
+int tempReadings[tempNumReadings];           // the readings from the analog input
+int tempIndex = 0;                           // the index of the current reading
+int tempTotal = 0;                           // the running total
+int tempAverage = 0;                         // the average
+
+
+
+
+/**********************************************************
+*                     PID variables
+**********************************************************/
+
 unsigned long pid_lastTime; //for constant sample time assurance
 int pid_sampleTime = 10;
 double pid_y, pid_u; //input reading and output value
@@ -46,7 +87,7 @@ double pid_ref; //reference
 double pid_errorSum, pid_lastError; //error sum and previous erros for integral and derivative components
 double pid_kp, pid_ki, pid_kd; //proportional, integral and derivative variables
 
-
+/*
 void pid(){
   //pid_y=analogRead(PIN_Y);
   
@@ -60,42 +101,55 @@ void pid(){
   
   pid_u = pid_kp * error + pid_ki * pid_errorSum + pid_kd * errorDerivative;
   
-  pid_lastError=eror;
+  pid_lastError=error;
   pid_lastTime=now;
+  
   
   //map pid_u
   //analogWrite(PIN_U,pid_u)
 
 }
 
-
+*/
 
 
 
 
 void setup() {
-  // initialize serial communication:
+
+  //proximity
   pinMode(proxSensor, INPUT);
   pinMode(LedPresence, OUTPUT);
-  pinMode(t, OUTPUT); 
 
-  pinMode(pushbutton1, OUTPUT);
-  pinMode(pushbutton2, OUTPUT);
   
+  //temperature
   pinMode(tempSensor, INPUT);
-  pinMode(LedTemperature, OUTPUT); 
+  pinMode(LedTemperature, OUTPUT);
 
-  // declare the LED pins as an OUTPUT:
-  pinMode(ledLightLow, OUTPUT); 
-  pinMode(ledLightHigh, OUTPUT);  
+  // light sensor
+  pinMode(ledLightLow, OUTPUT);
+  pinMode(ledLightHigh, OUTPUT);
+  
+  // luminaire
+  pinMode(potentiometerLEDPin, INPUT);
+  pinMode(ledLight, OUTPUT);
+  
+  // fan
+  pinMode(potentiometerFanPin, INPUT);
+  pinMode(fanPin, OUTPUT);
 
+  //
   pinMode(redPin, OUTPUT);
   pinMode(greenPin, OUTPUT);
   pinMode(bluePin, OUTPUT);
   
-  Serial.begin(9600);	//initialize serial communication 
+  //operation mode
+  pinMode(pushbutton1, OUTPUT);
+  pinMode(pushbutton2, OUTPUT);
+  
+  // initialize serial communication:
+  Serial.begin(9600);
 }
-
 
 
 
@@ -108,61 +162,125 @@ void loop()
 
 
 
-  ///////////////////////////////////////////////////////////////////
-  // proximity sensor
-  //digitalWrite(ledLight,HIGH);
-  analogWrite(ledLight,220);
+/**********************************************************
+*
+*                    Proximity
+*
+**********************************************************/ 
+
+  // read from proximity sensor
   proximity = analogRead(proxSensor);
-  distance=-0.146*proximity+63.87;
-  if (distance < 50) digitalWrite(LedPresence, HIGH);    // esta ocupado acende o LED
-  else  digitalWrite(LedPresence, LOW);                  // livre
+  
+  //// moving average to reduce noise
+  // subtract the last reading:
+  proximityTotal= proximityTotal - proximityReadings[proximityIndex];  
+  
+  // read from the sensor:  
+  proximityReadings[proximityIndex] = proximity;
+  
+  // add the reading to the total:
+  proximityTotal= proximityTotal + proximityReadings[proximityIndex];
+  
+  // advance to the next position in the array:  
+  proximityIndex = proximityIndex + 1;                    
+
+  // if we're at the end of the array...
+  if (proximityIndex >= proximityNumReadings)              
+    // ...wrap around to the beginning:
+    proximityIndex = 0;                          
+
+  // calculate the average:
+  proximityAverage = proximityTotal / proximityNumReadings;         
+
+  //calculate distance
+  distance = -0.146 * proximityAverage + 63.87;
+  
+  // workstation occupied if presence detected within 50 cm
+  if (distance < 50) digitalWrite(LedPresence, HIGH);
+  else digitalWrite(LedPresence, LOW);
 
   // equation y=-0.146x + 63.87 (in cm); it's linear in the interval [20,50] (cm)
 
 
-  /*
- Serial.print("proximity:");
-   Serial.print(proximity);
-   Serial.print("\t   distance:");
-   Serial.println(distance);
-   */
-  ////////////////////////////////////////////////////////////////
-  //temperature
+/*
+Serial.print("proximity:");
+Serial.print(proximityAverage);
+Serial.print("\t distance:");
+Serial.println(distance);
+*/
+
+
+/**********************************************************
+*
+*                    Temperature
+*
+**********************************************************/
+
+  // get temperature reading
   temperature = analogRead(tempSensor);
+  
+  // calculate real temperature from reading
   realtemp=((5 * (float)temperature)/1023)/0.01;
+  
+  // filter that doesn't accept readings which vary more than 10% from moving average
+  if ( (realtemp > 1.1 * tempAverage || realtemp < 0.9 * tempAverage) && millis() > 5000) realtemp=tempAverage;
+  
+  //// moving average to reduce noise
+  // subtract the last reading:
+  tempTotal= tempTotal - tempReadings[tempIndex];        
+  // read from the sensor:  
+  tempReadings[tempIndex] = realtemp;
+  // add the reading to the total:
+  tempTotal= tempTotal + tempReadings[tempIndex];      
+  // advance to the next position in the array:  
+  tempIndex = tempIndex + 1;                    
+
+  // if we're at the end of the array...
+  if (tempIndex >= tempNumReadings)              
+    // ...wrap around to the beginning:
+    tempIndex = 0;                          
+
+  // calculate the average:
+  tempAverage = tempTotal / tempNumReadings;         
+
+  //if temperature reaches 50º, LED ir turned on
+  if (tempAverage > 50) digitalWrite(LedTemperature, HIGH);
+  else digitalWrite(LedTemperature, LOW);
+
+
+Serial.print("\t Temperature:");
+Serial.print(tempAverage);
+Serial.println();
 
 
 
-  if (realtemp > 50) digitalWrite(LedTemperature, HIGH);    // esta ocupado acende o LED
-  else  digitalWrite(LedTemperature, LOW);
-  /*Serial.print("temp:");
-   Serial.print(temperature);
-   Serial.print("\t realtemp:");
-   Serial.print(realtemp);
-   Serial.println();
-   */
 
-
-  ///////////////////////////////////////////////////
-  //LDR
+/**********************************************************
+*
+*                              LDR
+*
+**********************************************************/  
 
   // read the value from the sensor
   LDRValue = analogRead(LDRpin);
+  
   /*Serial.print("Analog reading[LDR]:");
-   Serial.println(LDRValue);
-   */
+Serial.println(LDRValue);
+*/
   //convert the LDR reading to a voltage
   LDRVolt = (5.00*LDRValue)/1023.00;
   //LDRVolt = map(sensorValue, 0, 1023, 0.00 , 5.00);
+  
   /*Serial.print("Voltage [LDR]:");
-   Serial.println(LDRVolt);
-   */
+Serial.println(LDRVolt);
+*/
   //compute LDR resistance
   LDRes= ( LDRvcc*VoltDiv- LDRVolt*VoltDiv) / LDRVolt;
+  
   /*Serial.print("Resistance [LDR]:");
-   Serial.println(LDRes);
-   Serial.println("--");
-   */
+Serial.println(LDRes);
+Serial.println("--");
+*/
   //change state LED
   if (LDRes < LDR_downlimit){ //there is enough light in the room
     digitalWrite(ledLightLow, HIGH);
@@ -175,44 +293,54 @@ void loop()
   else{ //there is so-so light in the room
     digitalWrite(ledLightLow, LOW);
     digitalWrite(ledLightHigh, LOW);
-  } 
+  }
 
 
 
-  ////////////////////////////////////////////////////////
-  // Read potentionmeter
-
-  //NOT WORKING
+/**********************************************************
+*
+*                    DRIVING THE FAN
+*
+**********************************************************/ 
 
   int potentiometerFanValue = analogRead(potentiometerFanPin);
-  //int potentiometerLEDValue = analaogRead(potentiometerLEDPin);
-
-  //Serial.println(potentiometerFanValue,DEC);
-
-
-
-
+  potentiometerFanValue=map(potentiometerFanValue,0,1023,0,255);
+  analogWrite(fanPin,potentiometerFanValue);
+  
+  
+/**********************************************************
+*
+*                    DRIVING THE LED
+*
+**********************************************************/    
+  
+  int potentiometerLEDValue = analogRead(potentiometerLEDPin);
+  luminaireValue=map(potentiometerLEDValue,0,1023,0,255);
+  analogWrite(ledLight,luminaireValue);
+  
+//  Serial.print("Pot:");  
+//  Serial.println(potentiometerFanValue,DEC);
+//  Serial.println(luminaireValue,DEC);
 
   ///////////////////////////////////////////////////////////
   //Sending data to PC
   /*
 int LDRestemp = map(LDRes, 1000000000, 1000, 0, 99);
-   
-   String LL = (LDRestemp < 10) ? "0" + String((int)LDRestemp,DEC) : String((int)LDRestemp,DEC);
-   String PP = (distance < 10) ? "0" + String((int)distance, DEC) : String((int)distance, DEC);
-   String TT = (realtemp < 10) ? "0" + String((int)realtemp, DEC) : String((int)realtemp, DEC);
-   String CC = (0 < 16) ? "0" + String(0, HEX) : String(0, HEX); //TODO add real value
-   String DD = (0 < 16) ? "0" + String(0, HEX) : String(0, HEX); //TODO add real value
-   
-   String messageToPC = LL + PP + TT + CC + DD;
-   
-   Serial.print(messageToPC);
-   Serial.print("\n");
-   
-   */
+String LL = (LDRestemp < 10) ? "0" + String((int)LDRestemp,DEC) : String((int)LDRestemp,DEC);
+String PP = (distance < 10) ? "0" + String((int)distance, DEC) : String((int)distance, DEC);
+String TT = (realtemp < 10) ? "0" + String((int)realtemp, DEC) : String((int)realtemp, DEC);
+String CC = (0 < 16) ? "0" + String(0, HEX) : String(0, HEX); //TODO add real value
+String DD = (0 < 16) ? "0" + String(0, HEX) : String(0, HEX); //TODO add real value
+String messageToPC = LL + PP + TT + CC + DD;
+Serial.print(messageToPC);
+Serial.print("\n");
+*/
 
-  ///////////////////////////////////////////////////////
-  // Reading commands
+/**********************************************************
+*
+*                    COMMUNICATION
+*
+**********************************************************/ 
 
   // send data only when you receive data:
   if (Serial.available() > 0) {
@@ -233,9 +361,9 @@ int LDRestemp = map(LDRes, 1000000000, 1000, 0, 99);
       incomingByte2 = 10 + (incomingByte2 - 65); //Ascii A is 65
 
     /*
-   Serial.print("I received: ");
-     Serial.println(incomingByte1 * 16 + incomingByte2);
-     */
+Serial.print("I received: ");
+Serial.println(incomingByte1 * 16 + incomingByte2);
+*/
 
     //calculate % value of the control command
     int control = map(incomingByte1 *16 + incomingByte2, 0, 255, 0 , 100);
@@ -243,8 +371,11 @@ int LDRestemp = map(LDRes, 1000000000, 1000, 0, 99);
   }
 
 
-////////////////////////////////////////
-//pushbuttons
+/**********************************************************
+*
+*                    OPERATION MODES
+*
+**********************************************************/ 
 
   
   if ( digitalRead(pushbutton1) == HIGH)
@@ -252,8 +383,6 @@ int LDRestemp = map(LDRes, 1000000000, 1000, 0, 99);
   else
       digitalWrite(bluePin, LOW);
 
-  delay(100);                  
+  delay(100);
 
 }
-
-
