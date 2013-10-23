@@ -24,6 +24,12 @@ const int ledLight = 6;
 const int potentiometerLEDPin = A2;
 int luminaireValue;
 
+const int lumiNumReadings=20; // number of readings to compute moving average
+int lumiReadings[lumiNumReadings]; // the readings from the analog input
+int lumiIndex = 0; // the index of the current reading
+int lumiTotal = 0; // the running total
+int lumiAverage = 0; // the average
+
 /**********************************************************
 * FAN
 **********************************************************/
@@ -47,6 +53,12 @@ const int LDR_downlimit = 8000;
 int LDRValue = 0; // variable to store the value coming from the sensor
 float LDRVolt =0; // LDR tension
 float LDRes=0; // LDR resistance
+
+const int ldrNumReadings=20; // number of readings to compute moving average
+int ldrReadings[ldrNumReadings]; // the readings from the analog input
+int ldrIndex = 0; // the index of the current reading
+int ldrTotal = 0; // the running total
+int ldrAverage = 0; // the average
 
 /**********************************************************
 * PROXIMITY
@@ -77,42 +89,85 @@ int tempAverage = 0; // the average
 
 
 /**********************************************************
-* PID variables
+* PID FAN
 **********************************************************/
 
-unsigned long pid_lastTime; //for constant sample time assurance
-int pid_sampleTime = 10;
-double pid_y, pid_u; //input reading and output value
-double pid_ref=25; //reference
-double pid_errorSum, pid_lastError; //error sum and previous erros for integral and derivative components
-double pid_kp=1, pid_ki=0, pid_kd=100; //proportional, integral and derivative variables
+unsigned long pidFan_lastTime; //for constant sample time assurance
+int pidFan_sampleTime = 10;
+double pidFan_y, pidFan_u; //input reading and output value
+double pidFan_ref=25; //reference
+double pidFan_errorSum, pidFan_lastError; //error sum and previous erros for integral and derivative components
+double pidFan_kp=1, pidFan_ki=0, pidFan_kd=100; //proportional, integral and derivative variables
 
 
 //    P-Control: P=0.50*Gu, I=0, D=0.
 //    PI-Control: P=0.45*Gu, I=1.2/tu, D=0.
-//    PID-Control: P=0.60*Gu, I=2/tu, D=tu/8. 
+//    PIDFAN-Control: P=0.60*Gu, I=2/tu, D=tu/8. 
 
 
-void pid(){
-//pid_y=analogRead(PIN_Y);
-pid_y=tempAverage;
+void pidFan(){
+//pidFan_y=analogRead(PIN_Y);
+pidFan_y=tempAverage;
 
 unsigned long now = millis();
-double timeChange = (double) (now - pid_lastTime);
-if (timeChange < pid_sampleTime) return; //don't compute output if sample time has not been reached
-double error = pid_ref - pid_y; //compute current error
-pid_errorSum += (error * pid_sampleTime); //error's integral
-int errorDerivative = (error - pid_lastError) / pid_sampleTime; //error's derivative
-pid_u = pid_kp * error + pid_ki * pid_errorSum + pid_kd * errorDerivative;
-pid_lastError=error;
-pid_lastTime=now;
-//map pid_u
-//analogWrite(PIN_U,pid_u)
+double timeChange = (double) (now - pidFan_lastTime);
+if (timeChange < pidFan_sampleTime) return; //don't compute output if sample time has not been reached
+double error = pidFan_ref - pidFan_y; //compute current error
+pidFan_errorSum += (error * pidFan_sampleTime); //error's integral
+int errorDerivative = (error - pidFan_lastError) / pidFan_sampleTime; //error's derivative
+pidFan_u = pidFan_kp * error + pidFan_ki * pidFan_errorSum + pidFan_kd * errorDerivative;
+pidFan_lastError=error;
+pidFan_lastTime=now;
+//map pidFan_u
+//analogWrite(PIN_U,pidFan_u)
 
 }
 
 
+/**********************************************************
+* PID LED 
+**********************************************************/
 
+unsigned long pidLED_lastTime; //for constant sample time assurance
+int pidLED_sampleTime = 10;
+double pidLED_y, pidLED_u; //input reading and output value
+double pidLED_ref=25000; //reference for the light resistance
+double pidLED_errorSum, pidLED_lastError; //error sum and previous erros for integral and derivative components
+double pidLED_kp=1, pidLED_ki=0, pidLED_kd=100; //proportional, integral and derivative variables
+
+
+//    P-Control: P=0.50*Gu, I=0, D=0.
+//    PI-Control: P=0.45*Gu, I=1.2/tu, D=0.
+//    PIDFAN-Control: P=0.60*Gu, I=2/tu, D=tu/8. 
+
+
+void pidLED(){
+
+  pidLED_y=ldrAverage;
+  
+  unsigned long now = millis();
+  double timeChange = (double) (now - pidLED_lastTime);
+  if (timeChange < pidLED_sampleTime) return; //don't compute output if sample time has not been reached
+  
+  double error = pidLED_ref - pidLED_y; //compute current error
+  pidLED_errorSum += (error * pidLED_sampleTime); //error's integral
+  int errorDerivative = (error - pidLED_lastError) / pidLED_sampleTime; //error's derivative
+  
+  pidLED_u = pidLED_kp * error + pidLED_ki * pidLED_errorSum + pidLED_kd * errorDerivative;
+  
+  pidLED_lastError=error;
+  pidLED_lastTime=now;
+  
+  
+  Serial.print("PID_OUTPUT:\t");
+  Serial.println(pidLED_u,DEC);
+  Serial.print("LDR RES:\t");
+  Serial.println(ldrAverage,DEC);
+  
+  //map pidLED_u
+  //analogWrite(PIN_U,pidLED_u)
+
+}
 
 
 
@@ -160,6 +215,33 @@ void loop()
   //delay(1000);
   int proximity, temperature, distance;
   float realtemp;
+
+  Serial.println(pidLED_kp,DEC);
+  Serial.println(pidLED_ki,DEC);
+  Serial.println(pidLED_kd,DEC);
+  
+  if (Serial.available() > 0) { //If we sent the program a command deal with it
+    for (int x = 0; x < 4; x++) {
+      switch (x) {
+        case 0:
+          pidLED_kp = Serial.parseFloat();
+          break;
+        case 1:
+          pidLED_ki = Serial.parseFloat();
+          
+          break;
+        case 2:
+          pidLED_kd = Serial.parseFloat();
+          break;
+        case 3:
+          for (int y = Serial.available(); y == 0; y--) {
+            Serial.read(); //Clear out any residual junk
+          }
+          break;
+      }
+    }
+  }
+
 
 
 
@@ -249,9 +331,9 @@ Serial.println(distance);
   else digitalWrite(LedTemperature, LOW);
 
 
-Serial.print("\t Temperature:");
-Serial.print(tempAverage);
-Serial.println();
+//  Serial.print("\t Temperature:");
+//  Serial.print(tempAverage);
+//  Serial.println();
 
 
 
@@ -278,7 +360,28 @@ Serial.println();
   //compute LDR resistance
   //LDRes= ( LDRvcc*VoltDiv- LDRVolt*VoltDiv) / LDRVolt;
     LDRes = ( VoltDiv * LDRVolt ) / ( 5 - LDRVolt);
+    
+      //// moving average to reduce noise
+  // subtract the last reading:
+  ldrTotal= ldrTotal - ldrReadings[ldrIndex];
   
+  // read from the sensor:
+  ldrReadings[ldrIndex] = LDRes;
+  
+  // add the reading to the total:
+  ldrTotal= ldrTotal + ldrReadings[ldrIndex];
+  
+  // advance to the next position in the array:
+  ldrIndex = ldrIndex + 1;
+
+  // if we're at the end of the array...
+  if (ldrIndex >= ldrNumReadings)
+    // ...wrap around to the beginning:
+    ldrIndex = 0;
+
+  // calculate the average:
+  ldrAverage = ldrTotal / ldrNumReadings;
+
   //Serial.print("Resistance [LDR]:");
   //Serial.println(LDRes);
   //Serial.println("--");
@@ -305,15 +408,15 @@ Serial.println();
 *
 **********************************************************/
 
-  pid();
+  pidFan();
 
   int potentiometerFanValue = analogRead(potentiometerFanPin);
   potentiometerFanValue=map(potentiometerFanValue,0,1023,0,255);
-  analogWrite(fanPin,pid_u);
+  analogWrite(fanPin,pidFan_u);
   
- Serial.print("Pot fan:");
+ //Serial.print("Pot fan:");
  
- Serial.println(pid_u,DEC);
+ //Serial.println(pid_u,DEC);
   
   
 /**********************************************************
@@ -321,13 +424,35 @@ Serial.println();
 * DRIVING THE LED
 *
 **********************************************************/
+  pidLED();
   
   int potentiometerLEDValue = analogRead(potentiometerLEDPin);
   luminaireValue=map(potentiometerLEDValue,0,1023,0,255);
-  analogWrite(ledLight,luminaireValue);
+  analogWrite(ledLight,lumiAverage);
   
- //Serial.print("Pot luminaire:");
- //Serial.println(potentiometerLEDValue,DEC);
+  //// moving average to reduce noise
+  // subtract the last reading:
+  lumiTotal= lumiTotal - lumiReadings[lumiIndex];
+  
+  // read from the sensor:
+  lumiReadings[lumiIndex] = luminaireValue;
+  
+  // add the reading to the total:
+  lumiTotal= lumiTotal + lumiReadings[lumiIndex];
+  
+  // advance to the next position in the array:
+  lumiIndex = lumiIndex + 1;
+
+  // if we're at the end of the array...
+  if (lumiIndex >= lumiNumReadings)
+    // ...wrap around to the beginning:
+    lumiIndex = 0;
+
+  // calculate the average:
+  lumiAverage = lumiTotal / lumiNumReadings;
+  
+ Serial.print("Pot luminaire:");
+ Serial.println(lumiAverage,DEC);
  //Serial.println(luminaireValue,DEC);
 
   ///////////////////////////////////////////////////////////
@@ -391,6 +516,6 @@ Serial.println(incomingByte1 * 16 + incomingByte2);
   else
       digitalWrite(bluePin, LOW);
 
-  delay(100);
+  //delay(100);
 
 }
