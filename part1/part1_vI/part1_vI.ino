@@ -79,6 +79,15 @@ int tempIndex = 0; // the index of the current reading
 float tempTotal = 0; // the running total
 float tempAverage = 0; // the average
 
+/**********************************************************
+ *                 Communication
+ **********************************************************/
+String LR; //Light resistance
+String PP; //proximity
+String TT; //temperature
+String FF; //duty cycle of fan
+String LU; //duty cycle of luminaire
+String messageToPC;
 
 /**********************************************************
  *                   FAN 
@@ -86,8 +95,7 @@ float tempAverage = 0; // the average
 const int fanPin = 5;
 const int potentiometerFanPin = A1;
 
-unsigned long pidFan_lastTime; //for constant sample time assurance
-int pidFan_sampleTime = 10;
+
 double pidFan_y, pidFan_u; //input reading and output value
 double pidFan_ref=31; //reference
 double pidFan_errorSum, pidFan_lastError; //error sum and previous erros for integral and derivative components
@@ -120,7 +128,7 @@ ISR(TIMER1_COMPA_vect){  //interrupt code
   pidLED_y=ldrAverage;
 
   double error = pidLED_ref - pidLED_y; //compute current error
-  pidLED_errorSum += (error * pidLED_sampleTime); //error's integral
+  pidLED_errorSum += (error * 10); //error's integral
   int errorDerivative = (error - pidLED_lastError) / 10; //error's derivative
 
   // calculation of PID ouput
@@ -141,7 +149,7 @@ ISR(TIMER1_COMPA_vect){  //interrupt code
   pidFan_y=tempAverage;
 
   error =  pidFan_y - pidFan_ref; //compute current error
-  pidFan_errorSum += (error * pidFan_sampleTime); //error's integral
+  pidFan_errorSum += (error * 10); //error's integral
   errorDerivative = (error - pidFan_lastError) / 10; //error's derivative
 
   //anti windup for the fan
@@ -394,7 +402,7 @@ void loop()
    **********************************************************/
 
   // writes latest PID value to luminaire
-  analogWrite(ledPin,pidLED_u);
+  analogWrite(ledLight,pidLED_u);
 
   int potentiometerLEDValue = analogRead(potentiometerLEDPin);
   potentiometerLEDValue=map(potentiometerLEDValue,0,1023,0,255);
@@ -406,18 +414,38 @@ void loop()
 
   ///////////////////////////////////////////////////////////
   //Sending data to PC
-  /*
-   int LDRestemp = map(LDRes, 1000000000, 1000, 0, 99);
-   String LL = (LDRestemp < 10) ? "0" + String((int)LDRestemp,DEC) : String((int)LDRestemp,DEC);
-   String PP = (distance < 10) ? "0" + String((int)distance, DEC) : String((int)distance, DEC);
-   String TT = (realtemp < 10) ? "0" + String((int)realtemp, DEC) : String((int)realtemp, DEC);
-   String CC = (0 < 16) ? "0" + String(0, HEX) : String(0, HEX); //TODO add real value
-   String DD = (0 < 16) ? "0" + String(0, HEX) : String(0, HEX); //TODO add real value
-   String messageToPC = LL + PP + TT + CC + DD;
-   Serial.print(messageToPC);
-   Serial.print("\n");
-   */
-
+   
+   LR = String(map(ldrAverage,0,1000000,0,99),DEC);
+   if(LR.length() == 1) LR = String("0" + LR);
+   
+   PP = String((int)distance,DEC);
+   if(PP.length() == 1) PP = String("0" + PP);
+      
+   TT = String((int)tempAverage,DEC);
+   if(TT.length() == 1) TT = String("0" + TT);
+      
+   FF = String((int)pidFan_u, HEX);
+   if (FF.length() == 1) FF = String("0" + FF);
+      
+   LU = String((int)pidLED_u, HEX);
+   if (FF.length() == 1) FF = String("0" + FF);
+   
+//   Serial.print("LR\t");
+//   Serial.println(LR);
+//   Serial.print("PP\t");
+//   Serial.println(PP);
+//   Serial.print("TT\t");
+//   Serial.println(TT);
+//   Serial.print("FF\t");
+//   Serial.println(FF);
+//   Serial.print("LU\t");
+//   Serial.println(LU);
+   
+   messageToPC = String(LR + PP + TT + FF + LU);
+   
+   Serial.println(messageToPC);
+   delay(500);
+   
   /**********************************************************
    *
    * COMMUNICATION
