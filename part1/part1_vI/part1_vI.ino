@@ -444,7 +444,6 @@ void loop()
    messageToPC = String(LR + PP + TT + FF + LU);
    
    Serial.println(messageToPC);
-   delay(500);
    
   /**********************************************************
    *
