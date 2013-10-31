@@ -47,8 +47,9 @@ const int ledLightHigh =7; //pin for LED for light on
 
 const int VoltDiv =10000; //resistance used with the LDR for the voltage divisor
 const int LDRvcc =5; //voltage used to supply the voltage divisor
-const int LDR_uplimit = 25000;
-const int LDR_downlimit = 8000;
+const int LDR_uplimit = 13000; //before 25000 wiwth environment0
+const int LDR_downlimit = 1000
+; //before 8000
 
 int LDRValue = 0; // variable to store the value coming from the sensor
 float LDRVolt =0; // LDR tension
@@ -85,6 +86,7 @@ int tempReadings[tempNumReadings]; // the readings from the analog input
 int tempIndex = 0; // the index of the current reading
 int tempTotal = 0; // the running total
 int tempAverage = 0; // the average
+float realtemp_t,realtemp;
 
 
 
@@ -96,29 +98,71 @@ int tempAverage = 0; // the average
 unsigned long pidFan_lastTime; //for constant sample time assurance
 int pidFan_sampleTime = 10;
 double pidFan_y, pidFan_u; //input reading and output value
-double pidFan_ref=25; //reference
+double pidFan_ref=35; //reference
 double pidFan_errorSum, pidFan_lastError; //error sum and previous erros for integral and derivative components
-double pidFan_kp=1, pidFan_ki=0, pidFan_kd=100; //proportional, integral and derivative variables
+double pidFan_kp=4.28, pidFan_ki=0.000, pidFan_kd=0; //proportional, integral and derivative variables
+
 
 
 //    P-Control: P=0.50*Gu, I=0, D=0.
 //    PI-Control: P=0.45*Gu, I=1.2/tu, D=0.
 //    PIDFAN-Control: P=0.60*Gu, I=2/tu, D=tu/8. 
 
+// variable used for timing serial output of LDR value
+double PRINT_LAST_TIME_FAN;
 
 void pidFan(){
-//pidFan_y=analogRead(PIN_Y);
-pidFan_y=tempAverage;
+  //pidFan_y=analogRead(PIN_Y);
+  pidFan_y=tempAverage;
+  
+  unsigned long now = millis();
+  double timeChange = (double) (now - pidFan_lastTime);
+  if (timeChange < pidFan_sampleTime) return; //don't compute output if sample time has not been reached
+  
+  //double error = pidFan_ref - pidFan_y; //compute current error
+  double error = pidFan_y;
+  
+  if (tempAverage >= pidFan_ref){
+    pidFan_u = 150;
+    return;
+  }
+  
+  pidFan_errorSum += (error * pidFan_sampleTime); //error's integral
+  int errorDerivative = (error - pidFan_lastError) / pidFan_sampleTime; //error's derivative
+  
+  //error = error * ( 1 / (1 + exp(-error))); // logistic function
+  
+  pidFan_u = pidFan_kp * error + pidFan_ki * pidFan_errorSum + pidFan_kd * errorDerivative;
+  
+  pidFan_u = (pidFan_u < 0) ? 0 : pidFan_u;
+  
+  pidFan_lastError=error;
+  pidFan_lastTime=now;
+  
+  //double temp=( 1 / (1 + exp(-pidFan_u)));
+  
+  //if (pidFan_u < 0) pidFan_u=-pidFan_u;
+  //pidFan_u = 10000 * ( 1 / (1 + exp(pidFan_u)));
 
-unsigned long now = millis();
-double timeChange = (double) (now - pidFan_lastTime);
-if (timeChange < pidFan_sampleTime) return; //don't compute output if sample time has not been reached
-double error = pidFan_ref - pidFan_y; //compute current error
-pidFan_errorSum += (error * pidFan_sampleTime); //error's integral
-int errorDerivative = (error - pidFan_lastError) / pidFan_sampleTime; //error's derivative
-pidFan_u = pidFan_kp * error + pidFan_ki * pidFan_errorSum + pidFan_kd * errorDerivative;
-pidFan_lastError=error;
-pidFan_lastTime=now;
+  // this section is printing the value of LDRes and LED PID output each 250 ms
+  double PRINT_TIME_CHANGE= (double) (now - PRINT_LAST_TIME_FAN);
+  
+  if (PRINT_TIME_CHANGE >= 250){
+//    Serial.println("------------------ FAN ------------------");
+    Serial.print(pidFan_u,DEC);
+    Serial.print("\t");
+    Serial.print(realtemp_t,DEC);
+    Serial.print("\t");
+    Serial.print(realtemp,DEC);
+    Serial.print("\t");
+    Serial.println(tempAverage,DEC);
+
+
+    PRINT_LAST_TIME_FAN    =now;
+  }
+
+
+
 //map pidFan_u
 //analogWrite(PIN_U,pidFan_u)
 
@@ -132,17 +176,21 @@ pidFan_lastTime=now;
 unsigned long pidLED_lastTime; //for constant sample time assurance
 int pidLED_sampleTime = 10;
 double pidLED_y, pidLED_u; //input reading and output value
-double pidLED_ref=60000; //reference for the light resistance
+double pidLED_ref=7000;
+
+
+
+//reference for the light resistance
 double pidLED_errorSum, pidLED_lastError; //error sum and previous erros for integral and derivative components
-double pidLED_kp=0.005, pidLED_ki=0, pidLED_kd=0; //proportional, integral and derivative variables
+double pidLED_kp=0.01, pidLED_ki=0.0005, pidLED_kd=0; //proportional, integral and derivative variables
+// 0.02  0.001
 
 //0.0007
 //    P-Control: P=0.50*Gu, I=0, D=0.
 //    PI-Control: P=0.45*Gu, I=1.2/tu, D=0.
 //    PIDFAN-Control: P=0.60*Gu, I=2/tu, D=tu/8.
 
-// variable used for timing serial output of LDR value
-double PRINT_LAST_TIME;
+double PRINT_LAST_TIME_LED;
 
 void pidLED(){
 
@@ -154,32 +202,34 @@ void pidLED(){
   
   double error = pidLED_ref - pidLED_y; //compute current error
   pidLED_errorSum += (error * pidLED_sampleTime); //error's integral
+  
   int errorDerivative = (error - pidLED_lastError) / pidLED_sampleTime; //error's derivative
   
   pidLED_u = pidLED_kp * error + pidLED_ki * pidLED_errorSum + pidLED_kd * errorDerivative;
   
   pidLED_lastError=error;
   pidLED_lastTime=now;
+  
    
-  // this section is printing the value of LDRes and LED PID output each 250 ms
-  double PRINT_TIME_CHANGE= (double) (now - PRINT_LAST_TIME);
+//  // this section is printing the value of LDRes and LED PID output each 250 ms
+  double PRINT_TIME_CHANGE= (double) (now - PRINT_LAST_TIME_LED);
   
   if (PRINT_TIME_CHANGE >= 250){
-    Serial.print(pidLED_u,DEC);
-    Serial.print("\t");
-    Serial.print(LDRes,DEC);
-    Serial.print("\t");
-    Serial.println(ldrAverage);
+    //Serial.println("------------------ LED ------------------");
+//    Serial.print(pidLED_u,DEC);
+//    Serial.print("\t");
+//    Serial.print(LDRes,DEC);
+//    Serial.print("\t");
+//    Serial.println(ldrAverage);
 
-    PRINT_LAST_TIME=now;
+    PRINT_LAST_TIME_LED=now;
   }
   
   // if PID output exceeds 255, then it is 255; if it is negative, then it is 0
   if (pidLED_u > 255) pidLED_u=255;
   if (pidLED_u < 0) pidLED_u=0;
   
-  // sets the output for the luminaire
-  analogWrite(ledLight,pidLED_u);
+
 }
 
 
@@ -227,7 +277,7 @@ void loop()
 
   //delay(1000);
   int proximity, temperature, distance;
-  float realtemp;
+  
 
 
   
@@ -321,10 +371,12 @@ Serial.println(distance);
   temperature = analogRead(tempSensor);
   
   // calculate real temperature from reading
-  realtemp=( ( 5 * (float)temperature ) / 1023 ) / 0.01;
+  realtemp_t=( ( 5 * (float)temperature ) / 1023 ) / 0.01;
+  realtemp=realtemp_t;
   
   // filter that doesn't accept readings which vary more than 10% from moving average
-  if ( (realtemp > 1.1 * tempAverage || realtemp < 0.9 * tempAverage) && millis() > 5000) realtemp=tempAverage;
+  if ( (realtemp > 1.2 * tempAverage || realtemp < 0.8 * tempAverage) && millis() > 5000) realtemp=tempAverage;
+  
   
   //// moving average to reduce noise
   // subtract the last reading:
@@ -429,7 +481,8 @@ Serial.println(distance);
 
   double potentiometerFanValue = analogRead(potentiometerFanPin);
   potentiometerFanValue=map(potentiometerFanValue,0,1023,0,1);
-  analogWrite(fanPin,pidFan_u);
+  analogWrite(fanPin, pidFan_u);
+  //analogWrite(fanPin, 255); //maximum 150 not to be noisy
   //pidLED_kp=potentiometerFanValue;
   
  //Serial.print("Pot fan:");
@@ -470,9 +523,13 @@ Serial.println(distance);
   // calculate the average:
   lumiAverage = lumiTotal / lumiNumReadings;
   
+    // sets the output for the luminaire
+    analogWrite(ledLight,255);
+  
  //Serial.print("Pot luminaire:");
  //Serial.println(lumiAverage,DEC);
  //Serial.println(luminaireValue,DEC);
+
 
   ///////////////////////////////////////////////////////////
   //Sending data to PC
