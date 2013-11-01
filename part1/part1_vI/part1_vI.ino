@@ -13,15 +13,20 @@
  **********************************************************
  *********************************************************/
 
-const int redPin = 9;
-const int greenPin = 10;
-const int bluePin = 11;
 
 /**********************************************************
  * OPERATION MODES
  **********************************************************/
-const int pushbutton1 = 12;
-const int pushbutton2 = 13;
+const int pushbuttonPin = 12;
+
+int buttonPushCounter = 0;   // counter for the number of button presses
+int buttonState = 0;         // current state of the button
+int lastButtonState = 0;     // previous state of the button
+
+const int redPin = 9;
+const int greenPin = 10;
+const int bluePin = 11;
+
 
 /**********************************************************
  * LDR
@@ -196,14 +201,11 @@ void setup() {
   //pinMode(potentiometerFanPin, INPUT);
   pinMode(fanPin, OUTPUT);
 
-  //
+  //operation mode
+  pinMode(pushbuttonPin, OUTPUT);
   pinMode(redPin, OUTPUT);
   pinMode(greenPin, OUTPUT);
   pinMode(bluePin, OUTPUT);
-
-  //operation mode
-  pinMode(pushbutton1, OUTPUT);
-  pinMode(pushbutton2, OUTPUT);
 
   // initialize serial communication:
   Serial.begin(9600);
@@ -387,9 +389,6 @@ void loop()
   double potentiometerFanValue = analogRead(potentiometerFanPin);
   potentiometerFanValue=map(potentiometerFanValue,0,1023,0,1);
 
-  // writes latest PID value to fan
-  analogWrite(fanPin,pidFan_u);
-
 
   //Serial.print("Pot fan:"); 
   //Serial.println(potentiometerFanValue,DEC);
@@ -401,8 +400,6 @@ void loop()
    *
    **********************************************************/
 
-  // writes latest PID value to luminaire
-  analogWrite(ledLight,pidLED_u);
 
   int potentiometerLEDValue = analogRead(potentiometerLEDPin);
   potentiometerLEDValue=map(potentiometerLEDValue,0,1023,0,255);
@@ -412,8 +409,11 @@ void loop()
   //Serial.println(potentiometerLEDValue,DEC);
 
 
-  ///////////////////////////////////////////////////////////
-  //Sending data to PC
+  /**********************************************************
+   *
+   *                 COMMUNICATION TO PC
+   *
+   **********************************************************/
    
    LR = String(map(ldrAverage,0,1000000,0,99),DEC);
    if(LR.length() == 1) LR = String("0" + LR);
@@ -444,41 +444,6 @@ void loop()
    messageToPC = String(LR + PP + TT + FF + LU);
    
    Serial.println(messageToPC);
-   
-  /**********************************************************
-   *
-   * COMMUNICATION
-   *
-   **********************************************************/
-
-  // send data only when you receive data:
-  if (Serial.available() > 0) {
-
-    // read the incoming byte:
-
-    int incomingByte1 = Serial.read();
-    if(incomingByte1 > 47 && incomingByte1 < 58)
-      incomingByte1 = incomingByte1-48;
-    else
-      incomingByte1 = 10 + (incomingByte1 - 65); //Ascii A is 65
-
-
-      int incomingByte2 = Serial.read();
-    if(incomingByte2 > 47 && incomingByte2 < 58)
-      incomingByte2 = incomingByte2-48;
-    else
-      incomingByte2 = 10 + (incomingByte2 - 65); //Ascii A is 65
-
-    /*
-     Serial.print("I received: ");
-     Serial.println(incomingByte1 * 16 + incomingByte2);
-     */
-
-    //calculate % value of the control command
-    int control = map(incomingByte1 *16 + incomingByte2, 0, 255, 0 , 100);
-    //Serial.println(control);
-  }
-
 
   /**********************************************************
    *
@@ -486,14 +451,86 @@ void loop()
    *
    **********************************************************/
 
+   // read the pushbutton input pin:
+   buttonState = digitalRead(pushbuttonPin);
 
-  if ( digitalRead(pushbutton1) == HIGH)
-    digitalWrite(bluePin, HIGH);
-  else
-    digitalWrite(bluePin, LOW);
+   // compare the buttonState to its previous state
+   if (buttonState != lastButtonState) {
+       buttonPushCounter++;
+       if(buttonPushCounter > 3) buttonPushCounter == 0;
+   }
+  
+   // save the current state as the last state,
+   //for next time through the loop
+   lastButtonState = buttonState;
+  
+   switch (buttonPushCounter){
+   case 1: //Manual
+       {
+           digitalWrite(redPin, LOW);           
+           digitalWrite(greenPin, HIGH);
+           digitalWrite(bluePin, LOW);
+      
+           //read potentiometer and drive luminaire accordingly
+           int potentiometerLEDValue = analogRead(potentiometerLEDPin);
+           potentiometerLEDValue = map(potentiometerLEDValue,0,1023,0,255);
+           analogWrite(ledLight,potentiometerLEDValue); 
+           break;
+       }
+   case 2: //Serial
+       {
+           digitalWrite(redPin, LOW);           
+           digitalWrite(greenPin, LOW);
+           digitalWrite(bluePin, HIGH);
+       
+           // make sure there is data in serial line. In case there is not, keeps the luminaire as it is
+           if (Serial.available() > 0) {
+    
+               // read the incoming bytes:
+               int incomingByte1 = Serial.read();
+               if(incomingByte1 > 47 && incomingByte1 < 58)
+                   incomingByte1 = incomingByte1-48;
+               else
+                   incomingByte1 = 10 + (incomingByte1 - 65); //Ascii A is 65
+    
+               int incomingByte2 = Serial.read();
+               if(incomingByte2 > 47 && incomingByte2 < 58)
+                   incomingByte2 = incomingByte2-48;
+               else
+                   incomingByte2 = 10 + (incomingByte2 - 65); //Ascii A is 65
+    
+               //calculate % value of the control command
+               int control = incomingByte1 *16 + incomingByte2;
+               //Serial.println(control);
+        
+               //use the value received from pc to control luminaire
+               analogWrite(ledLight, control); 
+           }
+           break;
+       }
+   case 3: //PID
+       {
+           digitalWrite(redPin, HIGH);
+           digitalWrite(greenPin, LOW);
+           digitalWrite(bluePin, LOW);
 
-  //delay(100);
+           // writes latest PID value to luminaire
+           analogWrite(ledLight,pidLED_u);
 
+           // writes latest PID value to fan
+           analogWrite(fanPin,pidFan_u);
+       
+           break;
+       }
+   default: //=OFF
+       {
+           digitalWrite(redPin, LOW);
+           digitalWrite(greenPin, LOW);
+           digitalWrite(bluePin, LOW);
+           analogWrite(ledLight, 0);
+           break;
+       }
+   }
 }
 
 
