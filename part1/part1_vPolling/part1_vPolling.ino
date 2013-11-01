@@ -144,6 +144,13 @@ void pidFan(){
   //if (pidFan_u < 0) pidFan_u=-pidFan_u;
   //pidFan_u = 10000 * ( 1 / (1 + exp(pidFan_u)));
 
+
+  if(pidFan_u > 150) pidFan_u = 150; //150 is the max of fan for noiseless performance. Restricts control within the boundary.
+
+  //if(pidFan_u<0) return;  // se a luz ainda no aqueceu, deixa aquecer
+
+  if(error<0) pidFan_u=0;  // if temperature hasn't exceeded setpoint, don't act
+
   // this section is printing the value of LDRes and LED PID output each 250 ms
   double PRINT_TIME_CHANGE= (double) (now - PRINT_LAST_TIME_FAN);
   
@@ -151,7 +158,7 @@ void pidFan(){
 //    Serial.println("------------------ FAN ------------------");
     Serial.print(pidFan_u,DEC);
     Serial.print("\t");
-    Serial.print(realtemp_t,DEC);
+    Serial.print(error,DEC);
     Serial.print("\t");
     Serial.print(realtemp,DEC);
     Serial.print("\t");
@@ -278,7 +285,8 @@ void loop()
   //delay(1000);
   int proximity, temperature, distance;
   
-
+  if (distance < 50) pidLED_ref=10000;
+  else pidLED_ref = 1000;
 
   
   if (Serial.available() > 0) { //If we sent the program a command deal with it
@@ -500,7 +508,7 @@ Serial.println(distance);
   int potentiometerLEDValue = analogRead(potentiometerLEDPin);
   luminaireValue=map(potentiometerLEDValue,0,1023,0,255);
 
-  //analogWrite(ledLight,pidLED_u);
+  analogWrite(ledLight,pidLED_u);
   
   //// moving average to reduce noise
   // subtract the last reading:
@@ -524,7 +532,7 @@ Serial.println(distance);
   lumiAverage = lumiTotal / lumiNumReadings;
   
     // sets the output for the luminaire
-    analogWrite(ledLight,255);
+    //analogWrite(ledLight,255);
   
  //Serial.print("Pot luminaire:");
  //Serial.println(lumiAverage,DEC);

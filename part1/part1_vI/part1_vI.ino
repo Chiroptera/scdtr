@@ -102,7 +102,7 @@ const int potentiometerFanPin = A1;
 
 
 double pidFan_y, pidFan_u; //input reading and output value
-double pidFan_ref=31; //reference
+double pidFan_ref=33; //reference
 double pidFan_errorSum, pidFan_lastError; //error sum and previous erros for integral and derivative components
 double pidFan_kp=22, pidFan_ki=0.01, pidFan_kd=0; //proportional, integral and derivative variables
 
@@ -113,9 +113,9 @@ const int ledLight = 6;
 const int potentiometerLEDPin = A2;
 
 double pidLED_y, pidLED_u; //input reading and output value
-double pidLED_ref=100000; //reference for the light resistance
+double pidLED_ref; //reference for the light resistance
 double pidLED_errorSum, pidLED_lastError; //error sum and previous erros for integral and derivative components
-double pidLED_kp=0.005, pidLED_ki=0, pidLED_kd=0; //proportional, integral and derivative variables
+double pidLED_kp=0.007, pidLED_ki=0.000, pidLED_kd=0; //proportional, integral and derivative variables
 
 
 /****************************************************
@@ -144,7 +144,7 @@ ISR(TIMER1_COMPA_vect){  //interrupt code
 
   // if PID output exceeds 255, then it is 255; if it is negative, then it is 0
   if (pidLED_u > 255) pidLED_u=255;
-  if (pidLED_u < 0) pidLED_u=0;   
+  if (pidLED_u < 0) pidLED_u=0;
 
   /*****************************
    *             FAN
@@ -218,8 +218,8 @@ void setup() {
   OCR1A = 625;// = (16*10^6) / (100*256) - 1 -> we want a frequency of 100 Hz (10ms) using a prescale of 256
   // turn on CTC mode
   TCCR1B |= (1 << WGM12);
-  // Set CS10 and CS12 bits for 1024 prescaler
-  TCCR1B |= (1 << CS12) | (1 << CS10);  
+  // Set CS10 and CS12 bits for 256 prescaler
+  TCCR1B |= (1 << CS12);// | (1 << CS10);  
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
 
@@ -227,11 +227,28 @@ void setup() {
 
 }
 
-
-
+unsigned long lastTime = millis();
+unsigned long now;
 
 void loop()
 {
+    if (distance < 50) pidLED_ref=40000;
+    else pidLED_ref=20000;
+  
+    Serial.print(millis(),DEC);
+    Serial.print(",");
+    /* Serial.print(ldrAverage,DEC); */
+    /* Serial.print(","); */
+    /* Serial.println(pidLED_ref); */
+
+    Serial.print(tempAverage,DEC);
+    Serial.print(",");
+    Serial.println(pidFan_u,DEC);
+  
+  /* now = millis(); */
+    /* if (now - lastTime >= 500 ){ */
+    /*     Serial.print */
+    //}
 
   /**********************************************************
    *
@@ -311,11 +328,12 @@ void loop()
   if (tempAverage > 50) digitalWrite(LedTemperature, HIGH);
   else digitalWrite(LedTemperature, LOW);
 
-  //    Serial.println("\t read"); 
-  //    Serial.print(realtemp);
+  /* Serial.println("\t read");  */
+  /* Serial.print(realtemp); */
   //  Serial.print("\t Temperature:");
-  //  Serial.print(tempAverage);
-  //  Serial.println();
+  /* Serial.print(tempAverage); */
+  /* Serial.
+println(); */
 
 
 
@@ -389,7 +407,9 @@ void loop()
   double potentiometerFanValue = analogRead(potentiometerFanPin);
   potentiometerFanValue=map(potentiometerFanValue,0,1023,0,1);
 
-
+  // writes latest PID value to fan
+  analogWrite(fanPin,pidFan_u);
+           
   //Serial.print("Pot fan:"); 
   //Serial.println(potentiometerFanValue,DEC);
 
@@ -403,7 +423,6 @@ void loop()
 
   int potentiometerLEDValue = analogRead(potentiometerLEDPin);
   potentiometerLEDValue=map(potentiometerLEDValue,0,1023,0,255);
-
 
   //Serial.print("Pot luminaire:");
   //Serial.println(potentiometerLEDValue,DEC);
@@ -443,7 +462,7 @@ void loop()
    
    messageToPC = String(LR + PP + TT + FF + LU);
    
-   Serial.println(messageToPC);
+   //Serial.println(messageToPC);
 
   /**********************************************************
    *
@@ -463,7 +482,7 @@ void loop()
    // save the current state as the last state,
    //for next time through the loop
    lastButtonState = buttonState;
-  
+   buttonPushCounter=3;
    switch (buttonPushCounter){
    case 1: //Manual
        {
@@ -479,9 +498,9 @@ void loop()
        }
    case 2: //Serial
        {
-           digitalWrite(redPin, LOW);           
-           digitalWrite(greenPin, LOW);
-           digitalWrite(bluePin, HIGH);
+           digitalWrite(redPin, HIGH);           
+           digitalWrite(greenPin, HIGH);
+           digitalWrite(bluePin, LOW);
        
            // make sure there is data in serial line. In case there is not, keeps the luminaire as it is
            if (Serial.available() > 0) {
@@ -515,11 +534,9 @@ void loop()
            digitalWrite(bluePin, LOW);
 
            // writes latest PID value to luminaire
-           analogWrite(ledLight,pidLED_u);
+           analogWrite(ledLight,255);
 
-           // writes latest PID value to fan
-           analogWrite(fanPin,pidFan_u);
-       
+     
            break;
        }
    default: //=OFF
