@@ -23,9 +23,9 @@ int buttonPushCounter = 0;   // counter for the number of button presses
 int buttonState = 0;         // current state of the button
 int lastButtonState = 0;     // previous state of the button
 
-const int redPin = 9;
-const int greenPin = 10;
-const int bluePin = 11;
+const int redPin = 10;
+const int greenPin = 11;
+const int bluePin = 9;
 
 
 /**********************************************************
@@ -115,7 +115,7 @@ const int potentiometerLEDPin = A2;
 double pidLED_y, pidLED_u; //input reading and output value
 double pidLED_ref; //reference for the light resistance
 double pidLED_errorSum, pidLED_lastError; //error sum and previous erros for integral and derivative components
-double pidLED_kp=0.007, pidLED_ki=0.000, pidLED_kd=0; //proportional, integral and derivative variables
+double pidLED_kp=0.0005, pidLED_ki=0.000005, pidLED_kd=0.02; //proportional, integral and derivative variables
 
 
 /****************************************************
@@ -232,23 +232,20 @@ unsigned long now;
 
 void loop()
 {
-    if (distance < 50) pidLED_ref=40000;
-    else pidLED_ref=20000;
+    if (distance < 50) pidLED_ref=30000;
+    else pidLED_ref=15000;
   
-    Serial.print(millis(),DEC);
-    Serial.print(",");
+    
+    /* Serial.print(millis(),DEC); */
+    /* Serial.print(","); */
     /* Serial.print(ldrAverage,DEC); */
     /* Serial.print(","); */
     /* Serial.println(pidLED_ref); */
 
-    Serial.print(tempAverage,DEC);
-    Serial.print(",");
-    Serial.println(pidFan_u,DEC);
+    /* Serial.print(tempAverage,DEC); */
+    /* Serial.print(","); */
+    /* Serial.println(pidFan_u,DEC); */
   
-  /* now = millis(); */
-    /* if (now - lastTime >= 500 ){ */
-    /*     Serial.print */
-    //}
 
   /**********************************************************
    *
@@ -474,15 +471,16 @@ println(); */
    buttonState = digitalRead(pushbuttonPin);
 
    // compare the buttonState to its previous state
-   if (buttonState != lastButtonState) {
+   if (buttonState == HIGH && lastButtonState == LOW) {
        buttonPushCounter++;
-       if(buttonPushCounter > 3) buttonPushCounter == 0;
+       if(buttonPushCounter > 3) buttonPushCounter = 0;
+       Serial.println(buttonPushCounter,DEC);
    }
   
    // save the current state as the last state,
    //for next time through the loop
    lastButtonState = buttonState;
-   buttonPushCounter=3;
+   //buttonPushCounter=2;
    switch (buttonPushCounter){
    case 1: //Manual
        {
@@ -498,21 +496,28 @@ println(); */
        }
    case 2: //Serial
        {
-           digitalWrite(redPin, HIGH);           
-           digitalWrite(greenPin, HIGH);
-           digitalWrite(bluePin, LOW);
+           digitalWrite(redPin, LOW);
+           digitalWrite(greenPin, LOW);
+           digitalWrite(bluePin, HIGH);
        
            // make sure there is data in serial line. In case there is not, keeps the luminaire as it is
-           if (Serial.available() > 0) {
-    
+           if (Serial.available() == 2) {
+               Serial.print("vailable\t");
+               Serial.println(Serial.available(),DEC);
                // read the incoming bytes:
-               int incomingByte1 = Serial.read();
-               if(incomingByte1 > 47 && incomingByte1 < 58)
+               unsigned int incomingByte1 = Serial.read();
+               Serial.print("Byte1:\t");
+               Serial.println(incomingByte1,DEC);
+
+               if(incomingByte1 > 47 && incomingByte1 < 58) //number
                    incomingByte1 = incomingByte1-48;
-               else
+               else //letter
                    incomingByte1 = 10 + (incomingByte1 - 65); //Ascii A is 65
     
-               int incomingByte2 = Serial.read();
+               unsigned int incomingByte2 = Serial.read();
+               Serial.print("Byte2:\t");
+               Serial.println(incomingByte2,DEC);        
+
                if(incomingByte2 > 47 && incomingByte2 < 58)
                    incomingByte2 = incomingByte2-48;
                else
@@ -522,9 +527,19 @@ println(); */
                int control = incomingByte1 *16 + incomingByte2;
                //Serial.println(control);
         
+               Serial.println(control,DEC);
+
                //use the value received from pc to control luminaire
                analogWrite(ledLight, control); 
            }
+           
+           
+
+           while(Serial.available()){
+               Serial.read();
+           }
+
+           
            break;
        }
    case 3: //PID
@@ -534,7 +549,7 @@ println(); */
            digitalWrite(bluePin, LOW);
 
            // writes latest PID value to luminaire
-           analogWrite(ledLight,255);
+           analogWrite(ledLight,pidLED_u);
 
      
            break;
