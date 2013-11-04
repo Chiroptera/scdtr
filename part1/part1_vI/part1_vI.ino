@@ -56,7 +56,7 @@ float ldrAverage = 0; // the average
  * PROXIMITY
  **********************************************************/
 const int proxSensor = A5; //input pin fo the proximity sensor
-const int LedPresence = 3; // select the pin for the LED that detects presence
+const int LedPresence = 2; // select the pin for the LED that detects presence
 
 float proximity, distance;
 
@@ -87,6 +87,7 @@ float tempAverage = 0; // the average
 /**********************************************************
  *                 Communication
  **********************************************************/
+boolean printFlag=0;
 String LR; //Light resistance
 String PP; //proximity
 String TT; //temperature
@@ -97,7 +98,7 @@ String messageToPC;
 /**********************************************************
  *                   FAN 
  **********************************************************/
-const int fanPin = 5;
+const int fanPin = 3;
 const int potentiometerFanPin = A1;
 
 
@@ -125,6 +126,8 @@ double pidLED_kp=0.0005, pidLED_ki=0.000005, pidLED_kd=0.02; //proportional, int
  *****************************************************/
 
 ISR(TIMER1_COMPA_vect){  //interrupt code
+
+    printFlag=1;
 
   /*****************************
    *             LED
@@ -167,9 +170,9 @@ ISR(TIMER1_COMPA_vect){  //interrupt code
   // save error for future derivative
   pidFan_lastError=error;
 
-  if(pidFan_u > 150) pidFan_u = 150; //150 is the max of fan for noiseless performance. Restricts control within the boundary.
+  pidFan_u = (pidFan_u < 0) ? -pidFan_u : pidFan_u;
 
-  //if(pidFan_u<0) return;  // se a luz ainda no aqueceu, deixa aquecer
+  if(pidFan_u > 150) pidFan_u = 150; //150 is the max of fan for noiseless performance. Restricts control within the boundary.
 
   if(error<0) pidFan_u=0;  // if temperature hasn't exceeded setpoint, don't act
 
@@ -208,7 +211,7 @@ void setup() {
   pinMode(bluePin, OUTPUT);
 
   // initialize serial communication:
-  Serial.begin(9600);
+  Serial.begin(115200);
 
   ////Set interrupt for the PID timer
   TCCR1A = 0;// set entire TCCR1A register to 0
@@ -223,12 +226,15 @@ void setup() {
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
 
+  const byte mask= B11111000;
+  // mask bits that are not prescale !
+  int prescale = 1;
+  
+  TCCR2B = (TCCR1B & mask) | prescale;
+
   sei(); //enable all interrupts
 
 }
-
-unsigned long lastTime = millis();
-unsigned long now;
 
 void loop()
 {
@@ -236,15 +242,15 @@ void loop()
     else pidLED_ref=2000;
   
     
-    Serial.print(millis(),DEC);
-    Serial.print(",");
-    Serial.print(ldrAverage,DEC);
-    Serial.print(",");
-    Serial.println(pidLED_ref);
-
-    /* Serial.print(tempAverage,DEC); */
+    /* Serial.print(millis(),DEC); */
     /* Serial.print(","); */
-    /* Serial.println(pidFan_u,DEC); */
+    /* Serial.print(ldrAverage,DEC); */
+    /* Serial.print(","); */
+    /* Serial.println(pidLED_ref); */
+
+    Serial.print(tempAverage,DEC);
+    Serial.print(",");
+    Serial.println(pidFan_u,DEC);
   
 
   /**********************************************************
@@ -401,11 +407,10 @@ println(); */
    *
    **********************************************************/
 
-  double potentiometerFanValue = analogRead(potentiometerFanPin);
-  potentiometerFanValue=map(potentiometerFanValue,0,1023,0,1);
+
 
   // writes latest PID value to fan
-  analogWrite(fanPin,pidFan_u);
+  
            
   //Serial.print("Pot fan:"); 
   //Serial.println(potentiometerFanValue,DEC);
@@ -459,7 +464,10 @@ println(); */
    
    messageToPC = String(LR + PP + TT + FF + LU);
    
-   //Serial.println(messageToPC);
+   if (printFlag == 1){
+       Serial.println(messageToPC);
+       printFlag=0;
+   }
 
   /**********************************************************
    *
@@ -480,18 +488,24 @@ println(); */
    // save the current state as the last state,
    //for next time through the loop
    lastButtonState = buttonState;
-   //buttonPushCounter=2;
+
    switch (buttonPushCounter){
    case 1: //Manual
        {
            digitalWrite(redPin, LOW);           
            digitalWrite(greenPin, HIGH);
            digitalWrite(bluePin, LOW);
+
+           //read fan pot and drive fan
+           int potentiometerFanValue = analogRead(potentiometerFanPin);
+           potentiometerFanValue=map(potentiometerFanValue,0,1023,0,255);
+           analogWrite(fanPin,potentiometerFanValue);
       
            //read potentiometer and drive luminaire accordingly
            int potentiometerLEDValue = analogRead(potentiometerLEDPin);
            potentiometerLEDValue = map(potentiometerLEDValue,0,1023,0,255);
            analogWrite(ledLight,potentiometerLEDValue); 
+
            break;
        }
    case 2: //Serial
@@ -533,8 +547,8 @@ println(); */
                analogWrite(ledLight, control); 
            }
            
-           
 
+           //clean buffer
            while(Serial.available()){
                Serial.read();
            }
@@ -547,6 +561,9 @@ println(); */
            digitalWrite(redPin, HIGH);
            digitalWrite(greenPin, LOW);
            digitalWrite(bluePin, LOW);
+
+           // writes latest PID value to fan
+           analogWrite(fanPin,255);
 
            // writes latest PID value to luminaire
            analogWrite(ledLight,pidLED_u);
