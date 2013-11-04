@@ -172,7 +172,7 @@ ISR(TIMER1_COMPA_vect){  //interrupt code
 
   pidFan_u = (pidFan_u < 0) ? -pidFan_u : pidFan_u;
 
-  if(pidFan_u > 150) pidFan_u = 150; //150 is the max of fan for noiseless performance. Restricts control within the boundary.
+  if(pidFan_u > 250) pidFan_u = 250;
 
   if(error<0) pidFan_u=0;  // if temperature hasn't exceeded setpoint, don't act
 
@@ -230,7 +230,7 @@ void setup() {
   // mask bits that are not prescale !
   int prescale = 1;
   
-  TCCR2B = (TCCR1B & mask) | prescale;
+  TCCR2B = (TCCR2B & mask) | prescale;
 
   sei(); //enable all interrupts
 
