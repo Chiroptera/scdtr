@@ -226,6 +226,8 @@ void setup() {
   // enable timer compare interrupt
   TIMSK1 |= (1 << OCIE1A);
 
+
+  // change frequency of pin 3 to reduce fan noise
   const byte mask= B11111000;
   // mask bits that are not prescale !
   int prescale = 1;
@@ -238,21 +240,10 @@ void setup() {
 
 void loop()
 {
+    //change PID LED reference points
     if (distance < 50) pidLED_ref=18000;
     else pidLED_ref=2000;
   
-    
-    /* Serial.print(millis(),DEC); */
-    /* Serial.print(","); */
-    /* Serial.print(ldrAverage,DEC); */
-    /* Serial.print(","); */
-    /* Serial.println(pidLED_ref); */
-
-    Serial.print(tempAverage,DEC);
-    Serial.print(",");
-    Serial.println(pidFan_u,DEC);
-  
-
   /**********************************************************
    *
    * Proximity
@@ -331,15 +322,6 @@ void loop()
   if (tempAverage > 50) digitalWrite(LedTemperature, HIGH);
   else digitalWrite(LedTemperature, LOW);
 
-  /* Serial.println("\t read");  */
-  /* Serial.print(realtemp); */
-  //  Serial.print("\t Temperature:");
-  /* Serial.print(tempAverage); */
-  /* Serial.
-println(); */
-
-
-
 
   /**********************************************************
    *
@@ -392,44 +374,6 @@ println(); */
     digitalWrite(ledLightHigh, LOW);
   }
 
-
-  //Serial.print("Analog reading[LDR]:");
-  //Serial.println(LDRValue);
-  //Serial.print("Voltage [LDR]:");
-  //Serial.println(LDRVolt);
-  //Serial.print("Resistance [LDR]:");
-  //Serial.println(LDRes);
-  //Serial.println("--");
-
-  /**********************************************************
-   *
-   * DRIVING THE FAN
-   *
-   **********************************************************/
-
-
-
-  // writes latest PID value to fan
-  
-           
-  //Serial.print("Pot fan:"); 
-  //Serial.println(potentiometerFanValue,DEC);
-
-
-  /**********************************************************
-   *
-   * DRIVING THE LED
-   *
-   **********************************************************/
-
-
-  int potentiometerLEDValue = analogRead(potentiometerLEDPin);
-  potentiometerLEDValue=map(potentiometerLEDValue,0,1023,0,255);
-
-  //Serial.print("Pot luminaire:");
-  //Serial.println(potentiometerLEDValue,DEC);
-
-
   /**********************************************************
    *
    *                 COMMUNICATION TO PC
@@ -450,20 +394,10 @@ println(); */
       
    LU = String((int)pidLED_u, HEX);
    if (FF.length() == 1) FF = String("0" + FF);
-   
-//   Serial.print("LR\t");
-//   Serial.println(LR);
-//   Serial.print("PP\t");
-//   Serial.println(PP);
-//   Serial.print("TT\t");
-//   Serial.println(TT);
-//   Serial.print("FF\t");
-//   Serial.println(FF);
-//   Serial.print("LU\t");
-//   Serial.println(LU);
-   
+
    messageToPC = String(LR + PP + TT + FF + LU);
-   
+
+   // printFlag turns 1 with 10ms timer
    if (printFlag == 1){
        Serial.println(messageToPC);
        printFlag=0;
