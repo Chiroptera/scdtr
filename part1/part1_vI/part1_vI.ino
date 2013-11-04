@@ -38,8 +38,8 @@ const int ledLightHigh =7; //pin for LED for light on
 
 const int VoltDiv =10000; //resistance used with the LDR for the voltage divisor
 const int LDRvcc =5; //voltage used to supply the voltage divisor
-const int LDR_uplimit = 13000;
-const int LDR_downlimit = 1000;
+const int LDR_uplimit = 19000;
+const int LDR_downlimit = 1500;
 
 float LDRValue = 0; // variable to store the value coming from the sensor
 float LDRVolt =0; // LDR tension
@@ -232,15 +232,15 @@ unsigned long now;
 
 void loop()
 {
-    if (distance < 50) pidLED_ref=30000;
-    else pidLED_ref=15000;
+    if (distance < 50) pidLED_ref=18000;
+    else pidLED_ref=2000;
   
     
-    /* Serial.print(millis(),DEC); */
-    /* Serial.print(","); */
-    /* Serial.print(ldrAverage,DEC); */
-    /* Serial.print(","); */
-    /* Serial.println(pidLED_ref); */
+    Serial.print(millis(),DEC);
+    Serial.print(",");
+    Serial.print(ldrAverage,DEC);
+    Serial.print(",");
+    Serial.println(pidLED_ref);
 
     /* Serial.print(tempAverage,DEC); */
     /* Serial.print(","); */
