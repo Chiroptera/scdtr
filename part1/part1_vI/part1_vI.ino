@@ -113,6 +113,7 @@ double pidFan_kp=22, pidFan_ki=0.01, pidFan_kd=0; //proportional, integral and d
 const int ledLight = 6;
 const int potentiometerLEDPin = A2;
 
+int outputLEDValue=0;           /* variable that stores the output luminaire value */
 double pidLED_y, pidLED_u; //input reading and output value
 double pidLED_ref; //reference for the light resistance
 double pidLED_errorSum, pidLED_lastError; //error sum and previous erros for integral and derivative components
@@ -276,6 +277,7 @@ void loop()
 
   //calculate distance
   distance = -0.146 * proximityAverage + 63.87;
+  //Serial.println(distance,DEC);
 
   // workstation occupied if presence detected within 50 cm
   if (distance < 50) digitalWrite(LedPresence, HIGH);
@@ -383,23 +385,32 @@ void loop()
    LR = String(map(ldrAverage,0,1000000,0,99),DEC);
    if(LR.length() == 1) LR = String("0" + LR);
    
+   distance = (distance > 0) ? distance : -distance;
    PP = String((int)distance,DEC);
    if(PP.length() == 1) PP = String("0" + PP);
       
-   TT = String((int)tempAverage,DEC);
+   TT = String((int)((tempAverage > 99) ? 99 : tempAverage),DEC);
    if(TT.length() == 1) TT = String("0" + TT);
       
    FF = String((int)pidFan_u, HEX);
    if (FF.length() == 1) FF = String("0" + FF);
       
-   LU = String((int)pidLED_u, HEX);
-   if (FF.length() == 1) FF = String("0" + FF);
+   LU = String((int)outputLEDValue, HEX);
+   if (LU.length() == 1) LU = String("0" + LU);
 
    messageToPC = String(LR + PP + TT + FF + LU);
 
+    
    // printFlag turns 1 with 10ms timer
-   if (printFlag == 1){
+   if (printFlag == 1 && messageToPC.length()==10){
        Serial.println(messageToPC);
+
+       /* Serial.println("LR="+LR); */
+       /* Serial.println("PP="+PP); */
+       /* Serial.println("TT="+TT); */
+       /* Serial.println("FF="+FF); */
+       /* Serial.println("LU="+LU); */
+
        printFlag=0;
    }
 
@@ -409,6 +420,9 @@ void loop()
    *
    **********************************************************/
 
+   
+
+
    // read the pushbutton input pin:
    buttonState = digitalRead(pushbuttonPin);
 
@@ -416,7 +430,7 @@ void loop()
    if (buttonState == HIGH && lastButtonState == LOW) {
        buttonPushCounter++;
        if(buttonPushCounter > 3) buttonPushCounter = 0;
-       Serial.println(buttonPushCounter,DEC);
+       //Serial.println(buttonPushCounter,DEC);
    }
   
    // save the current state as the last state,
@@ -438,8 +452,8 @@ void loop()
            //read potentiometer and drive luminaire accordingly
            int potentiometerLEDValue = analogRead(potentiometerLEDPin);
            potentiometerLEDValue = map(potentiometerLEDValue,0,1023,0,255);
-           analogWrite(ledLight,potentiometerLEDValue); 
-
+           /* analogWrite(ledLight,potentiometerLEDValue);  */
+           outputLEDValue=potentiometerLEDValue;
            break;
        }
    case 2: //Serial
@@ -450,12 +464,11 @@ void loop()
        
            // make sure there is data in serial line. In case there is not, keeps the luminaire as it is
            if (Serial.available() == 2) {
-               Serial.print("vailable\t");
-               Serial.println(Serial.available(),DEC);
-               // read the incoming bytes:
+               //read the incoming bytes:
                unsigned int incomingByte1 = Serial.read();
-               Serial.print("Byte1:\t");
-               Serial.println(incomingByte1,DEC);
+
+               /* 32 is the offset between upper and lower case */
+               incomingByte1 = (incomingByte1 > 97) ? incomingByte1 - 32 : incomingByte1;
 
                if(incomingByte1 > 47 && incomingByte1 < 58) //number
                    incomingByte1 = incomingByte1-48;
@@ -463,8 +476,7 @@ void loop()
                    incomingByte1 = 10 + (incomingByte1 - 65); //Ascii A is 65
     
                unsigned int incomingByte2 = Serial.read();
-               Serial.print("Byte2:\t");
-               Serial.println(incomingByte2,DEC);        
+               incomingByte2 = (incomingByte2 > 97) ? incomingByte2 - 32 : incomingByte2;
 
                if(incomingByte2 > 47 && incomingByte2 < 58)
                    incomingByte2 = incomingByte2-48;
@@ -473,12 +485,20 @@ void loop()
     
                //calculate % value of the control command
                int control = incomingByte1 *16 + incomingByte2;
-               //Serial.println(control);
-        
-               Serial.println(control,DEC);
+
+
+               /* Serial.print("vailable\t"); */
+               /* Serial.println(Serial.available(),DEC); */
+               /* Serial.print("Byte1:\t"); */
+               /* Serial.println(incomingByte1,DEC); */
+               /* Serial.print("Byte2:\t"); */
+               /* Serial.println(incomingByte2,DEC);         */
+               /* Serial.print("control: "); */
+               /* Serial.println(control,DEC); */
 
                //use the value received from pc to control luminaire
-               analogWrite(ledLight, control); 
+               /* analogWrite(ledLight, control);  */
+               outputLEDValue=control;
            }
            
 
@@ -500,8 +520,8 @@ void loop()
            analogWrite(fanPin,255);
 
            // writes latest PID value to luminaire
-           analogWrite(ledLight,pidLED_u);
-
+           /* analogWrite(ledLight,pidLED_u); */
+           outputLEDValue=pidLED_u;
      
            break;
        }
@@ -510,10 +530,12 @@ void loop()
            digitalWrite(redPin, LOW);
            digitalWrite(greenPin, LOW);
            digitalWrite(bluePin, LOW);
-           analogWrite(ledLight, 0);
+           outputLEDValue=0;
            break;
        }
    }
+   analogWrite(ledLight,outputLEDValue);
+
 }
 
 
