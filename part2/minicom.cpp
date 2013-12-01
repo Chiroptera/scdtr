@@ -25,7 +25,41 @@
 #include <termios.h>
 #endif
 
+
+using namespace boost::asio;
+using ip::udp;
 using namespace std;
+
+
+class udpClient {
+public:
+    udpClient(const int port, const string addr){
+        client_sock=socket(AF_INET,SOCK_DGRAM,0);
+
+        client_addr.sin_family=AF_INET;
+        client_addr.sin_port=htons(port);
+        client_addr.sin_addr.s_addr=inet_addr(addr.c_str());
+
+        addr_len = sizeof(struct sockaddr);
+    }
+
+    void write(string msg){
+        int count;
+
+        strcpy(buffer,msg.c_str());
+        cout << "sent:" << buffer << endl;
+        count=sendto(client_sock,&buffer,msg.length(),0,(struct sockaddr*)&client_addr,sizeof(client_addr));
+
+        if(count==-1) cout<<"Send ERROR\n";
+        else cout<<"Send successful"<<endl;
+    }
+private:
+    int client_sock;
+    struct sockaddr_in client_addr;
+    socklen_t addr_len;
+    char buffer[20]={'\0'};
+};
+
 
 class minicom_client
 {
@@ -57,7 +91,8 @@ public:
 
         void write(const char *msg) // pass the write data to the do_write function via the io service in the other thread
         {
-                if (strlen(msg)==2) io_service_.post(boost::bind(&minicom_client::do_write, this, msg));
+
+            if (strlen(msg)==2) io_service_.post(boost::bind(&minicom_client::do_write, this, msg));
         }
 
         void close() // call the do_close function via the io service in the other thread
@@ -89,24 +124,11 @@ private:
         { // the asynchronous read operation has now completed or failed and returned an error
                 if (!error)
                 { // read completed, so process the data
-
+                    //cout.write(read_msg_, bytes_transferred); // echo to standard output
                      if (bytes_transferred == 12){
-//cout.write(read_msg_, bytes_transferred); // echo to standard output
-//     // cout << "Part 1:" << read_msg_[0] << " " << read_msg_[1] << endl;
-                    //     // cout << "Part 2:" << read_msg_[2] << " " << read_msg_[3] << endl;
-                    //     // cout << "Part 3:" << read_msg_[4] << " " << read_msg_[5] << endl;
-                    //     // cout << "Part 4:" << read_msg_[6] << " " << read_msg_[7] << endl;
-                    //     // cout << "Part 5:" << read_msg_[8] << " " << read_msg_[9] << endl;
-                    //     // cout << "Part 6:" << (int) read_msg_[10] << " " << (int) read_msg_[11] << endl;
-//cout << std::string(&read_msg_[0],&read_msg_[11]) << endl;
-//                         string rcv(&read_msg_[0],&read_msg_[11]);
-                         //cout << rcv << "\n length: " << rcv.length() << endl;
                          arduino.set_parameters(std::string(&read_msg_[0],&read_msg_[11]));
-                         //cout << std::string(&read_msg_[0],&read_msg_[11]).length << endl;
-
                      }
-//cout << "Bytes transfer:" << bytes_transferred << endl;
-                        read_start(); // start waiting for another asynchronous read again
+                     read_start(); // start waiting for another asynchronous read again
                 }
                 else
                         do_close(error);
@@ -115,7 +137,11 @@ private:
         void do_write(const char *msg)
         { // callback to handle write call from outside this class
                 bool write_in_progress = !write_msgs_.empty(); // is there anything currently being written?
-                write_msgs_.push_back(msg[0]); // store in write buffer
+                // for(unsigned int i=0;i<strlen(msg);i++){
+                //     write_msgs_.push_back(msg[i]); // store in write buffer
+                // }
+
+                write_msgs_.push_back(msg[0]);
                 write_msgs_.push_back(msg[1]);
                 if (!write_in_progress) // if nothing is currently being written, then start
                         write_start();
@@ -126,18 +152,20 @@ private:
                 boost::asio::async_write(serialPort,
                         boost::asio::buffer(&write_msgs_.front(), 2),
                         boost::bind(&minicom_client::write_complete,
-                                this,
-                                boost::asio::placeholders::error));
+                                    this,
+                                    boost::asio::placeholders::error));
         }
 
-        void write_complete(const boost::system::error_code& error)
+    void write_complete(const boost::system::error_code& error)
         { // the asynchronous read operation has now completed or failed and returned an error
                 if (!error)
                 { // write completed, so send next write data
-                        write_msgs_.pop_front(); // remove the completed data
-                        write_msgs_.pop_front();
-                        if (!write_msgs_.empty()) // if there is anthing left to be written
-                                write_start(); // then start sending the next item in the buffer
+
+                    write_msgs_.pop_front(); // remove the completed data
+                    write_msgs_.pop_front(); // remove the completed data
+
+                    if (!write_msgs_.empty()) // if there is anthing left to be written
+                        write_start(); // then start sending the next item in the buffer
                 }
                 else
                         do_close(error);
@@ -162,6 +190,7 @@ private:
         boost::asio::io_service& io_service_; // the main IO service that runs this connection
         boost::asio::serial_port serialPort; // the serial port this instance is connected to
         char read_msg_[max_read_length]; // data read from the socket
+
         deque<char> write_msgs_; // buffered write data
         Arduino& arduino;
 };
@@ -177,8 +206,6 @@ void taskWrite(minicom_client *c){
         send[0]=input[0];
         send[1]=input[1];
         c->write(send);
-        //c->write(input[0]);
-        //c->write(input[1]);
     }
     c->close(); // close the minicom client connection
 
@@ -218,8 +245,13 @@ int main(int argc, char* argv[])
                 thread t(taskRead,&c);
                 //boost::thread t(boost::bind(taskRead,&c));
                 thread t2(taskWrite,&c);
-
-                while(true){arduino.print();usleep(100000);} //slow print loop
+                udpClient x(2003,"127.0.0.1");
+                while(true){ //slow print loop
+                    //arduino.print();
+                    //cout << arduino.getString() << endl;
+                    x.write(arduino.getString());
+                    usleep(100000);
+                }
 
                 t.join(); // wait for the IO service thread to close
                 t2.join();

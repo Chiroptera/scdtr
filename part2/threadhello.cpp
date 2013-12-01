@@ -32,3 +32,7 @@ void Arduino::set_parameters(std::string parameters){
 void Arduino::print(){
 	cout << "LDR:" << LL << " proximity:" << PP << " temperature:" << TT << " fan control duty cycle:" << CC << " LED duty cycle" << DD << endl;
 }
+
+string Arduino::getString(){
+    return to_string(LL) + "," + to_string(PP) + "," + to_string(TT) + "," + to_string(CC) + "," + to_string(DD);
+}

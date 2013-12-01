@@ -5,7 +5,7 @@ using namespace std;
 
 // create arduino CLASS. The parameters are the five values read.
 class Arduino{
-	private: int LL = 0; 	// decimal code of the LDR 00 -> 1MOhm (dark) 99 -> 1KOhm (bright)	
+	private: int LL = 0; 	// decimal code of the LDR 00 -> 1MOhm (dark) 99 -> 1KOhm (bright)
 				int PP = 0; 	// decimal code of the proximity measure, in centimeters
 				int TT = 0; 	// decimal code of the temperature, in degrees centigrade
   				int CC = 0; 	// hexadecimal code of the fan control duty cycle 00->0%  FF->100%
@@ -13,6 +13,7 @@ class Arduino{
 
 	public:  void set_parameters(std::string parameters);
 		 void print();
+                 string getString();
 };
 
 #endif
