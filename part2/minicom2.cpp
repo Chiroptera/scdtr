@@ -8,21 +8,19 @@
         To end the application, send Ctrl-C on standard input
 */
 
-#include <ctype.h>
-#include <string>
-#include <sstream>
-#include "threadhello.h"
-#include <boost/bind.hpp>
-
-//#include <boost/enable_shared_from_this.hpp>
-
-#include <deque>
-#include <iostream>
-#include <boost/bind.hpp>
 #include <boost/asio.hpp>
-#include <boost/asio/serial_port.hpp>
+#include <boost/bind.hpp>
 #include <thread>
+#include <deque>
+#include <string>
+#include <ctype.h>
+#include "threadhello.h"
+
+
+#include <sstream>
+#include <iostream>
 #include <boost/lexical_cast.hpp>
+
 
 
 #ifdef POSIX
@@ -177,6 +175,42 @@ private:
     Arduino& arduino;
 };
 
+class udpServer{
+public:
+    udpServer(boost::asio::io_service& io, Arduino& arduino)
+        : io_service_(io),
+          micro(arduino),
+          socket_(io,udp::endpoint(udp::v4(),10000))
+    {
+
+    }
+
+    void respond(){
+
+        boost::array<char,1> recv;
+        udp::endpoint client;
+        boost::system::error_code err;
+        socket_.receive_from(buffer(recv),client,0,err);
+        if(err && err != error::message_size){
+            std::cout << "Error" << std::endl;
+        }
+        boost::system::error_code ignored;
+        socket_.send_to(buffer(micro.getString()),client,0,ignored);
+    }
+
+private:
+    boost::asio::io_service& io_service_;
+    udp::socket socket_;
+    Arduino& micro;
+};
+
+
+void taskUDP(udpServer *udp){
+    for(;;){
+        udp->respond();
+        usleep(100000);
+    }
+}
 
 void taskWrite(minicom_client *c){
     while (c->active()) // check the internal state of the connection to make sure it's still running
@@ -208,18 +242,11 @@ void start(){
         tcp::socket socket(io_);
         acceptor.accept(socket);
         std::cout << "conection made" << std::endl;
-        //write(socket,buffer("Hello World\n"));
         while(active_){
-
-            //        size_t len = socket.async_read_some(buffer(buf,2),err);
             socket.async_read_some(buffer(buf),boost::bind(&tcp_server::tcpRead,
                                                            this,
                                                            boost::asio::placeholders::error,
                                                            boost::asio::placeholders::bytes_transferred));
-
-
-            //socket.async_read_some(buffer(buf,2),tcpRead);
-            //            std::cout.write(buf.data(),len);
         }
     }
 }
@@ -278,27 +305,36 @@ int main(int argc, char* argv[])
                         cerr << "Usage: minicom <baud> <device>\n";
                         return 1;
                 }
-                boost::asio::io_service io_service, io_service2;
+                boost::asio::io_service io_service;
                 Arduino arduino;
                 // define an instance of the main class of this program
                 minicom_client c(io_service, boost::lexical_cast<unsigned int>(argv[1]), argv[2], arduino);
                 // run the IO service as a separate thread, so the main thread can block on standard input
                 //                thread t(&boost::asio::io_service::run, &io_service);
+
+
                 thread t(taskRead,&c);
-                //boost::thread t(boost::bind(taskRead,&c));
+
                 thread t2(taskWrite,&c);
-                //udpClient x(2003,"127.0.0.1");
+
+
                 tcp_server tcpstuff(io_service,&c);
                 thread tTCP(taskTCP,&tcpstuff);
+
+                udpServer x(io_service,arduino);
+                thread tUDP(taskUDP,&x);
+
                  while(true){ //slow print loop
-                      arduino.print();
+                     arduino.print();
                 //     //cout << arduino.getString() << endl;
                 //     x.write(arduino.getString());
-                     usleep(100000);
+                     usleep(1000000);
                  }
 
                 t.join(); // wait for the IO service thread to close
                 t2.join();
+                tTCP.join();
+                tUDP.join();
         }
         catch (exception& e)
         {
