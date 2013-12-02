@@ -35,17 +35,7 @@ using boost::asio::ip::tcp;
 using boost::asio::ip::udp;
 
 class minicom_client
-{
-public:
-    minicom_client(boost::asio::io_service& io_service, unsigned int baud, const string& device, Arduino& arduinoIn)
-                : active_(true),
-                  io_service_(io_service),
-                  serialPort(io_service, device),
-                  arduino(arduinoIn)
-        {
-                if (!serialPort.is_open())
-                {
-                        cerr << "Failed to open serial port\n";
+
                 }
                 boost::asio::serial_port_base::baud_rate baud_option(baud);
                 serialPort.set_option(baud_option); // set the baud rate after the port has been opened
@@ -207,7 +197,7 @@ private:
 
 void taskUDP(udpServer *udp){
     for(;;){
-        udp->respond();
+        udp->.crespond();
         usleep(100000);
     }
 }
