@@ -47,7 +47,7 @@ for(;;){
 
 
 
-/******* Com este codigo o cliente le uma string do teclado e depois escreve no servidor. Não esta a funcionar. 
+/******* Com este codigo o cliente le uma string do teclado e depois escreve no servidor. Não esta a funcionar.
 sleep(5);
 
 for(;;)

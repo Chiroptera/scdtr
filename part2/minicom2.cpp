@@ -7,11 +7,13 @@
 
         To end the application, send Ctrl-C on standard input
 */
+
+#include <ctype.h>
 #include <string>
 #include <sstream>
 #include "threadhello.h"
 #include <boost/bind.hpp>
-#include <boost/shared_ptr.hpp>
+
 //#include <boost/enable_shared_from_this.hpp>
 
 #include <deque>
@@ -21,7 +23,7 @@
 #include <boost/asio/serial_port.hpp>
 #include <thread>
 #include <boost/lexical_cast.hpp>
-#include <boost/date_time/posix_time/posix_time_types.hpp>
+
 
 #ifdef POSIX
 #include <termios.h>
@@ -62,10 +64,16 @@ public:
 
         }
 
-        void write(const char *msg) // pass the write data to the do_write function via the io service in the other thread
+        void write(char *msg) // pass the write data to the do_write function via the io service in the other thread
         {
-
-            if (strlen(msg)==2) io_service_.post(boost::bind(&minicom_client::do_write, this, msg));
+            cout << "minicom.write: i got stuff " << msg << " and length=" << strlen(msg) << endl;
+            if ( (isalpha(msg[0]) || isdigit(msg[0])) && (isalpha(msg[1]) || isdigit(msg[1])) ){
+                cout << "check what yp" << endl;
+                cmd[0]=msg[0];
+                cmd[1]=msg[1];
+                cout << "minicom.write: i got stuff " << cmd << " and length=" << strlen(cmd) << endl;
+                io_service_.post(boost::bind(&minicom_client::do_write, this, cmd));
+            }
         }
 
         void close() // call the do_close function via the io service in the other thread
@@ -107,13 +115,13 @@ private:
                         do_close(error);
         }
 
-        void do_write(const char *msg)
+        void do_write(char *msg)
         { // callback to handle write call from outside this class
                 bool write_in_progress = !write_msgs_.empty(); // is there anything currently being written?
                 // for(unsigned int i=0;i<strlen(msg);i++){
                 //     write_msgs_.push_back(msg[i]); // store in write buffer
                 // }
-
+                cout << "minicom.do_write: i got stuff " << cmd << endl;
                 write_msgs_.push_back(msg[0]);
                 write_msgs_.push_back(msg[1]);
                 if (!write_in_progress) // if nothing is currently being written, then start
@@ -122,6 +130,7 @@ private:
 
         void write_start(void)
         { // Start an asynchronous write and call write_complete when it completes or fails
+            cout << "gonna write" << write_msgs_.front() << endl;
                 boost::asio::async_write(serialPort,
                         boost::asio::buffer(&write_msgs_.front(), 2),
                         boost::bind(&minicom_client::write_complete,
@@ -159,13 +168,13 @@ private:
 
 
 private:
-        bool active_; // remains true while this object is still operating
-        boost::asio::io_service& io_service_; // the main IO service that runs this connection
-        boost::asio::serial_port serialPort; // the serial port this instance is connected to
-        char read_msg_[max_read_length]; // data read from the socket
-
-        deque<char> write_msgs_; // buffered write data
-        Arduino& arduino;
+    bool active_; // remains true while this object is still operating
+    boost::asio::io_service& io_service_; // the main IO service that runs this connection
+    boost::asio::serial_port serialPort; // the serial port this instance is connected to
+    char read_msg_[max_read_length]; // data read from the socket
+    char cmd[2];
+    deque<char> write_msgs_; // buffered write data
+    Arduino& arduino;
 };
 
 
@@ -185,57 +194,65 @@ void taskWrite(minicom_client *c){
 }
 class tcp_server{
 public:
-tcp_server (boost::asio::io_service& io,minicom_client& micro)
-    : microSerial(micro)
-    {
-    tcp::acceptor acceptor(io,tcp::endpoint(tcp::v4(),10000));
+    tcp_server (boost::asio::io_service& io, minicom_client *micro)
+        : io_(io),
+          microSerial(micro),
+                             active_(true)
+    {}
+
+void start(){
+    tcp::acceptor acceptor(io_,tcp::endpoint(tcp::v4(),10000));
     boost::system::error_code err;
     for(;;)
     {
-        tcp::socket socket(io);
+        tcp::socket socket(io_);
         acceptor.accept(socket);
         std::cout << "conection made" << std::endl;
         //write(socket,buffer("Hello World\n"));
-        for(;;){
+        while(active_){
 
             //        size_t len = socket.async_read_some(buffer(buf,2),err);
-            socket.async_read_some(buffer(buf,2),boost::bind(&tcp_server::tcpRead,
-                                                             this,
-                        boost::asio::placeholders::error,
-                        boost::asio::placeholders::bytes_transferred));
+            socket.async_read_some(buffer(buf),boost::bind(&tcp_server::tcpRead,
+                                                           this,
+                                                           boost::asio::placeholders::error,
+                                                           boost::asio::placeholders::bytes_transferred));
 
 
             //socket.async_read_some(buffer(buf,2),tcpRead);
-
-            if(err == error::eof)
-                break;
-            else if (err)
-                std::cout << "Unknown Error";
             //            std::cout.write(buf.data(),len);
         }
     }
 }
 
 private:
-    void tcpRead(const boost::system::error_code& error, size_t bytes_transferred){
+    void tcpRead(const boost::system::error_code& err, size_t bytes_transferred){
+
+        if(err == error::eof)
+            active_=false;
+        else if (err)
+            std::cout << "Unknown Error";
+
         cout << "read " << bytes_transferred << endl;
-         cout << "message " << buf[0] << buf[1] << endl;
+        cout << "message " << buf[0] << buf[1] << endl;
         if (bytes_transferred==2){
             char cmd[2];
             cmd[0]=buf[0];
             cmd[1]=buf[1];
-            microSerial.write(cmd);
+            microSerial->write(cmd);
         }
     }
 
 private:
+    bool active_;
+    minicom_client *microSerial;
     boost::array<char,128> buf;
-    minicom_client& microSerial;
-
+    boost::asio::io_service& io_;
 };
 
 
-
+void taskTCP(tcp_server *server){
+    server->start();
+}
 
 void taskRead(minicom_client *c){
     c->read();
@@ -261,7 +278,7 @@ int main(int argc, char* argv[])
                         cerr << "Usage: minicom <baud> <device>\n";
                         return 1;
                 }
-                boost::asio::io_service io_service;
+                boost::asio::io_service io_service, io_service2;
                 Arduino arduino;
                 // define an instance of the main class of this program
                 minicom_client c(io_service, boost::lexical_cast<unsigned int>(argv[1]), argv[2], arduino);
@@ -271,14 +288,14 @@ int main(int argc, char* argv[])
                 //boost::thread t(boost::bind(taskRead,&c));
                 thread t2(taskWrite,&c);
                 //udpClient x(2003,"127.0.0.1");
-                tcp_server tcpstuff(io_service,c);
-
-                // while(true){ //slow print loop
-                //     //arduino.print();
+                tcp_server tcpstuff(io_service,&c);
+                thread tTCP(taskTCP,&tcpstuff);
+                 while(true){ //slow print loop
+                      arduino.print();
                 //     //cout << arduino.getString() << endl;
                 //     x.write(arduino.getString());
-                //     usleep(100000);
-                // }
+                     usleep(100000);
+                 }
 
                 t.join(); // wait for the IO service thread to close
                 t2.join();
