@@ -129,17 +129,37 @@ private:
 
 
 int main(){
+
     boost::asio::io_service io;
-    //udpClient x(io);
+
+    const int NumberOfClients = 2;
+
+
+
+
+
+    int ports[NumberOfClients];
+    ports[0]=10000;
+    ports[1]=10001;
+
+    std::string addrs[NumberOfClients];
+    addrs[0]="127.0.0.1";
+    addrs[0]="127.0.0.1";
+
+    std::vector<udpClient> clients;
+
+    for (int i=0;i++;i<NumberOfClients){
+        clients.push_back(udpClient(io));
+    }
+
+    std::cout << clients.size() << std::endl;
+
     udp::resolver resolver(io);
     udp::socket socket(io);
 
     string addr="127.0.0.1";
 
     //    string port="10000";
-    int ports[2];
-    ports[0]=10001;
-    ports[1]=10000;
 
     for(int i=0;i<2;i++){
         //        x.queryServer("127.0.0.1","10000");
