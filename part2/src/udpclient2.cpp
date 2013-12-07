@@ -4,7 +4,7 @@
 
 using namespace boost::asio;
 using ip::udp;
-
+using namespace std;
 
 class udpClient{
 public:
@@ -14,8 +14,8 @@ public:
           _socket(io)
     {}
 
-    string queryServer(std::string addr, std::string port){
-        udp::resolver::query query(udp::v4(),addr,port);
+    std::string queryServer(std::string addr, int port){
+        udp::resolver::query query(udp::v4(),addr,std::to_string(port));
         udp::endpoint receiver = *_resolver.resolve(query);
 
         _socket.open(udp::v4());
@@ -26,7 +26,7 @@ public:
         udp::endpoint sender;
         size_t len = _socket.receive_from(buffer(recv_buf),sender);
         //std::cout.write(recv_buf.data(),len);
-        return (std::str(recv_buf.data()));
+        return (std::string(recv_buf.data()));
     }
 
 private:
@@ -39,7 +39,7 @@ int main(){
     io_service io;
     udpClient x(io);
     std::string ip="127.0.0.1";
-    std::string port = "10001";
+    int port = 10001;
     std::string resposta = "";
     resposta = x.queryServer(ip,port);
     std::cout << resposta << std::endl;

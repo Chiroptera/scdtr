@@ -98,33 +98,34 @@ using boost::asio::ip::tcp;
 //     boost::asio::io_service& io_;
 // };
 
-// class udpClient{
-// public:
-//     udpClient(boost::asio::io_service& io)
-//         : _io(io),
-//           resolver(io)
-//     {}
+class udpClient{
+public:
+    udpClient(boost::asio::io_service& io)
+        : _io(io),
+          _resolver(io),
+          _socket(io)
+    {}
 
-//     void queryServer(string addr, string port){
-//         udp::resolver::query query(udp::v4(),addr,port);
-//         udp::endpoint receiver = *resolver.resolve(query);
+    std::string queryServer(std::string addr, int port){
+        udp::resolver::query query(udp::v4(),addr,std::to_string(port));
+        udp::endpoint receiver = *_resolver.resolve(query);
 
-//         socket.open(udp::v4());
-//         boost::array<char,1> send_buf = {{0}};
+        _socket.open(udp::v4());
+        boost::array<char,1> send_buf = {{0}};
 
-//         socket.send_to(buffer(send_buf),receiver);
-//         boost::array<char,128> recv_buf;
-//         udp::endpoint sender;
-//         size_t len = socket.receive_from(buffer(recv_buf),sender);
-//         std::cout.write(recv_buf.data(),len);
-//     }
+        _socket.send_to(buffer(send_buf),receiver);
+        boost::array<char,128> recv_buf;
+        udp::endpoint sender;
+        size_t len = _socket.receive_from(buffer(recv_buf),sender);
+        //std::cout.write(recv_buf.data(),len);
+        return (std::string(recv_buf.data()));
+    }
 
-// private:
-//     boost::asio::io_service& _io;
-//     udp::socket _socket;
-//     udp::resolver resolver;
-// };
-
+private:
+    boost::asio::io_service& _io;
+    udp::socket _socket;
+    udp::resolver _resolver;
+};
 
 
 int main(){
@@ -137,12 +138,12 @@ int main(){
 
     //    string port="10000";
     int ports[2];
-    ports[0]=10000;
-    ports[1]=10001;
+    ports[0]=10001;
+    ports[1]=10000;
 
     for(int i=0;i<2;i++){
         //        x.queryServer("127.0.0.1","10000");
-
+        std::cout << "Querying " << addr << " in port " << ports[i] << std::endl;
         udp::resolver::query query(udp::v4(),addr,std::to_string(ports[i]));
         udp::endpoint receiver = *resolver.resolve(query);
 
