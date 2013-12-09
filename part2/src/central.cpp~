@@ -7,7 +7,7 @@
 #include <ctype.h>
 //#include "threadhello.h"
 #include <vector>
-
+#include <memory>
 
 #include <sstream>
 #include <iostream>

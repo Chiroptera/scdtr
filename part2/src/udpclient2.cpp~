@@ -1,7 +1,6 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <string>
-#include <boost/array.hpp>
 
 using namespace boost::asio;
 using ip::udp;

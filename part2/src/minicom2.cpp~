@@ -178,11 +178,10 @@ private:
 
 class udpServer{
 public:
-  udpServer(boost::asio::io_service& io, Arduino& arduino,int port)
+    udpServer(boost::asio::io_service& io, Arduino& arduino)
         : io_service_(io),
           micro(arduino),
-          socket_(io,udp::endpoint(udp::v4(),port))
-
+          socket_(io,udp::endpoint(udp::v4(),10000))
     {
 
     }
@@ -230,15 +229,14 @@ void taskWrite(minicom_client *c){
 }
 class tcp_server{
 public:
-  tcp_server (boost::asio::io_service& io, minicom_client *micro,int port)
+    tcp_server (boost::asio::io_service& io, minicom_client *micro)
         : io_(io),
           microSerial(micro),
-	  active_(true),
-	  _port(port)
+                             active_(true)
     {}
 
 void start(){
-    tcp::acceptor acceptor(io_,tcp::endpoint(tcp::v4(),_port));
+    tcp::acceptor acceptor(io_,tcp::endpoint(tcp::v4(),10000));
     boost::system::error_code err;
     for(;;)
     {
@@ -274,7 +272,6 @@ private:
 
 private:
     bool active_;
-  int _port;
     minicom_client *microSerial;
     boost::array<char,128> buf;
     boost::asio::io_service& io_;
@@ -304,14 +301,11 @@ int main(int argc, char* argv[])
 #endif
         try
         {
-                if (argc != 4)
+                if (argc != 3)
                 {
-                        cerr << "Usage: minicom <baud> <device> <port>\n";
+                        cerr << "Usage: minicom <baud> <device>\n";
                         return 1;
                 }
-		
-		int port = atoi(argv[3]);
-
                 boost::asio::io_service io_service;
                 Arduino arduino;
                 // define an instance of the main class of this program
@@ -325,10 +319,10 @@ int main(int argc, char* argv[])
                 thread t2(taskWrite,&c);
 
 
-                tcp_server tcpstuff(io_service,&c,port);
+                tcp_server tcpstuff(io_service,&c);
                 thread tTCP(taskTCP,&tcpstuff);
 
-                udpServer x(io_service,arduino,port);
+                udpServer x(io_service,arduino);
                 thread tUDP(taskUDP,&x);
 
                  while(true){ //slow print loop

@@ -15,25 +15,16 @@ void Arduino::set_parameters(std::string parameters){
     //cout << "check parameters length: " << parameters.length() << endl;
   int aux1=0;
 
-  if(parameters.length() != 10) {
-     cout << "length " << parameters.length() << " is not 11" << endl;
+   if(parameters.length() != 11){
 	return;
     }
-  cout << "test1" << endl;
+
 	LL = stoi(parameters.substr(0,2),NULL,10);
-	cout << "test2" << endl;
 	PP = stoi(parameters.substr(2,2),NULL,10);
-	cout << "test3" << endl;
 	TT = stoi(parameters.substr(4,2),NULL,10);
 	aux1 = stoi(parameters.substr(6,2), NULL, 16);
-	cout << "test4" << endl;
 	CC = aux1*100/255;
-	cout << "test5" << endl;
 	DD = stoi(parameters.substr(8,2), NULL, 16);
-
-
-	return;
-
 }
 
 //TODO we must use a map function to convert the values of duty cycle from 0-255 to 0-100%
