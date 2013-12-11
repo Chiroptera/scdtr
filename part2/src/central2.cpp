@@ -13,8 +13,8 @@
 #define M 30		//maximum number of lines for simplex
 #define N 30		//maximum number of colums for simplex
 #define V 8		//number of variables to optimize
-#define Lmin 	300	// Lum for empty desk
-#define Lmax 	600	// Lum for desk occupied
+#define Lmin 	1	// Lum for empty desk
+#define Lmax 	50.5	// Lum for desk occupied
 
 using namespace boost::asio;
 using namespace std;
@@ -73,7 +73,7 @@ typedef struct {
   double mat[M][N];
 } Tableau;
 
-double opt_sol[V];
+double opt_sol[NumberOfClients];
 
 
 void pivot_on(Tableau *tab, int row, int col) {
@@ -206,43 +206,81 @@ void simplex(Tableau *tab) {
 }
 
 
-int simplexDummy(double coupling[][NumberOfClients],double background[NumberOfClients],bool occupancy2[NumberOfClients],double commands[NumberOfClients])
+void nl(int k){
+	int j;
+	for(j=0;j<k;j++) putchar('-'); 
+	putchar('\n'); 
+}
+
+
+void print_tableau(Tableau *tab) {
+  static int counter=0;
+  int i, j;
+  nl(70);
+
+  printf("%-6s%5s", "col:", "b[i]");
+  for(j=1;j<tab->n; j++) { printf("    x%d,", j); } printf("\n");
+
+  for(i=0;i<tab->m; i++) {
+    if (i==0) printf("max:"); else
+    printf("b%d: ", i);
+    for(j=0;j<tab->n; j++) {
+      if (equal((int)tab->mat[i][j], tab->mat[i][j]))
+        printf(" %6d", (int)tab->mat[i][j]);
+      else
+        printf(" %6.2lf", tab->mat[i][j]);
+      }
+    printf("\n");
+  }
+  nl(70);
+}
+
+
+
+int simplexDummy(double E[][NumberOfClients],double O[NumberOfClients],int occupancy[NumberOfClients])
 {
+
+   // print background matrix
+   std::cout << "\n\nBACKGROUND MATRIX\n\n";
+   for (int i=0; i<NumberOfClients;i++){
+     std::cout << O[i] << ",";
+   }
+   std::cout << std::endl;
+
+   // print coupling matrix
+   std::cout << "\n\nCOUPLING MATRIX\n\n";
+   for (int i=0; i<NumberOfClients;i++){
+     std::cout << "\t";
+     for (int j=0; j<NumberOfClients;j++){
+       std::cout << E[i][j] << ",";
+     }
+     std::cout << std::endl;
+   }
+
+
 Tableau tab;
 
-tab.m=V+1;	// number of conditons + 1 (cost_function)	
-tab.n=V+1;	// number of variables + 1 (b)
+tab.m=NumberOfClients+1;	// number of conditons + 1 (cost_function)	
+tab.n=NumberOfClients+1;	// number of variables + 1 (b)
 
 int i, j;
 	
-int Ldes[V];		// Desired luminace in each desk
-int b[V];		// luminance to provide in each desk
-float E[V][V];		// crossed influences
-float E_t[V][V];	// the transposed of the crossed influences
+int Ldes[NumberOfClients];		// Desired luminace in each desk
+int b[NumberOfClients];		// luminance to provide in each desk
+float E_t[NumberOfClients][NumberOfClients];	// the transposed of the crossed influences
 
-int cost[V]={1,1,1,1,1,1,1,1};			   // cost -> in the simplex they will be constraints: >= 1 (all LEDs penalized equaly)
-int occupancy[V]={1, 0, 1, 1, 0, 0, 0, 1};	   // states of the desks -> free or occupied (example)
-int O[V]={100, 100, 100, 100, 100, 100, 100, 100};  //environment luminance
-
-
-//fill the matrix of the PWM LEDs as an identity matrix and the crossed influences with an example
-for(i=0; i<V; i++){
-	for(j=0; j<V; j++){
-		if(i==j) E[i][j]=1000;	
-		else     E[i][j]=100;		
-	}			
-}
+int cost[NumberOfClients]={1,1,1,1,1,1,1,1};			   // cost -> in the simplex they will be constraints: >= 1 (all LEDs penalized equaly)
 
 // calculate the luminance we need to provide in each desk
-for(i=0; i<V; i++){
+for(i=0; i<NumberOfClients; i++){
 	if(occupancy[i]==0) Ldes[i]=Lmin; 	// desk free 
 	else Ldes[i]=Lmax;			// desk occupied
 	b[i]=Ldes[i]-O[i];			// luminace constraint result L-O
 }
 
 // create the transpose of E
-for(i=0; i<V; i++){
-	for(j=0; j<V; j++){
+for(i=0; i<NumberOfClients; i++){
+	for(j=0; j<NumberOfClients; j++){
 		E_t[i][j]=E[j][i];}
 }
 
@@ -253,16 +291,17 @@ for(i=0; i<tab.m; i++){
 		if(i==0 && j==0) tab.mat[0][0]=0;
 		if(i==0 && j!=0) tab.mat[0][j]=b[j-1];
 		if(i!=0 && j==0) tab.mat[i][0]=cost[i-1];
-		if(i!=0 && i<=V && j!=0) tab.mat[i][j]=E_t[i-1][j-1];
+		if(i!=0 && i<=NumberOfClients && j!=0) tab.mat[i][j]=E_t[i-1][j-1];
 		}
 }		
 
 // change signs of the first row
 for(i=0; i<tab.n; i++) tab.mat[0][i]= -tab.mat[0][i];
-
+ print_tableau(&tab);
   simplex(&tab);
+ print_tableau(&tab);
   printf("Solution: ");
-  for(j=0; j<V; j++) printf("X%d=%3.6lf ",j+1,opt_sol[j]);
+  for(j=0; j<NumberOfClients; j++) printf("X%d=%3.6lf ",j+1,opt_sol[j]);
   printf("\n");
   return 0;
 } 
@@ -278,7 +317,7 @@ COMMUNICATION
 
 
 
-void updateStates(bool occupancy[NumberOfClients]){
+void updateStates(int occupancy[NumberOfClients]){
   int i=0;
   while(i<NumberOfClients){
     std::string response = "";
@@ -293,7 +332,7 @@ void updateStates(bool occupancy[NumberOfClients]){
   return;
 }
 
-void getBackgroundAndCoupling(double coupling[][NumberOfClients],double background[NumberOfClients],bool occupancy[NumberOfClients]){
+void getBackgroundAndCoupling(double coupling[][NumberOfClients],double background[NumberOfClients],int occupancy[NumberOfClients]){
 
   // initialize all workstations with LED at 0% PWM
   for (int i=0;i<NumberOfClients;i++){
@@ -303,14 +342,17 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
   // update for background data
   updateStates(occupancy);
 
-  double aux;
-
+  double aux,resistance;
   // get background data
   std::cout << "\n\n\n\n doing background \n\n\n";
   for (int i=0;i<NumberOfClients;i++){
     aux = 198 - micros[i].getLDR();
     aux = aux / 33;
-    background[i] = pow(10.00,aux);
+    //    background[i] = pow(10.00,aux);
+    resistance=pow(10.00,aux);
+    aux = 100-49.5*log10(resistance/1000);
+
+    background[i] = aux;
   }
 
 
@@ -329,7 +371,9 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
       std::cout << "effect of micro " << i << " in micro " << j << " is " << micros[j].getLDR() << std::endl;
       aux = 198 - micros[j].getLDR();
       aux = aux / 33;
-      coupling[i][j] = pow(10.00,aux);
+      resistance=pow(10.00,aux);
+      aux = 100-49.5*log10(resistance/1000);
+      coupling[j][i] = aux - background[i];
     }
 
     // restore LED i to 00
@@ -353,7 +397,7 @@ int main(int argc, char **argv)
 
    double coupling[NumberOfClients][NumberOfClients]={{0}};
    double background[NumberOfClients]={0};
-   bool occupancy2[NumberOfClients]={0};
+   int occupancy2[NumberOfClients]={0};
    double commands[NumberOfClients];
 
    std::string addrs[NumberOfClients+1];
@@ -410,8 +454,25 @@ int main(int argc, char **argv)
      std::cout << std::endl;
    }
 
-   
+   // //fill the matrix of the PWM LEDs as an identity matrix and the crossed influences with an example
+   // for(int i=0; i<NumberOfClients; i++){
+   //   for(int j=0; j<NumberOfClients; j++){
+   //     if(i==j) coupling[i][j]=1000;	
+   //     else     coupling[i][j]=100;		
+   //   }			
+   // }
 
-   simplexDummy(coupling,background,occupancy2,commands);
+   //occupancy2[0]=1;
+    // occupancy2[1]=0;
+   // occupancy2[2]=1;
+   // occupancy2[3]=1;
+   // occupancy2[4]=0;
+   // occupancy2[5]=0;
+   // occupancy2[6]=0;
+   // occupancy2[7]=1;
+
+
+   
+   simplexDummy(coupling,background,occupancy2);
    
 }

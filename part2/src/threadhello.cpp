@@ -49,7 +49,7 @@ int Arduino::getLDR(){
   return LL;
 }
 
-bool Arduino::getPresence(){
-  if (PP <= 50) return true;
-  else return false;
+int Arduino::getPresence(){
+  if (PP <= 50) return 1;
+  else return 0;
 }
