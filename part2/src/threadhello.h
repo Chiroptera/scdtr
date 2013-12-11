@@ -14,6 +14,7 @@ class Arduino{
  public:  void set_parameters(std::string parameters);
   void print();
   string getString();
+  int getLDR();
 };
 
 #endif

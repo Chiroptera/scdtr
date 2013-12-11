@@ -4,6 +4,7 @@
 #include <string>
 #include "threadhello.h"
 #include <vector>
+#include <math.h>
 
 using namespace boost::asio;
 using namespace std;
@@ -12,14 +13,16 @@ using ip::udp;
 
 class udpClient{
 public:
-    udpClient(boost::asio::io_service& io)
+  udpClient(boost::asio::io_service& io, std::string addr, int port)
         : _io(io),
           _resolver(io),
-          _socket(io)
+          _socket(io),
+	  _addr(addr),
+	  _port(port)
     {}
 
-  std::string queryServer(std::string addr, int port, std::string message){
-        udp::resolver::query query(udp::v4(),addr,std::to_string(port));
+  std::string queryServer(std::string message){
+        udp::resolver::query query(udp::v4(),_addr,std::to_string(_port));
         udp::endpoint receiver = *_resolver.resolve(query);
 
         _socket.open(udp::v4());
@@ -36,48 +39,27 @@ public:
     }
 
 private:
-    boost::asio::io_service& _io;
-    udp::socket _socket;
-    udp::resolver _resolver;
+  boost::asio::io_service& _io;
+  udp::socket _socket;
+  udp::resolver _resolver;
+  std::string _addr;
+  int _port;
 };
 
+
 bool testMode = false;
-
+const int NumberOfClients = 8;
 boost::array<Arduino,8> micros;
+std::vector<udpClient*> clients;
 
-void getBacgroungAndCoupling(udpClient& central,int* coupling,int *background, int NumberOfClients){
-  //initialize 
-  for (int i=0;i++;i<NumberOfclients){
 
-    if (testMode) {
-      std::cout << "querying " << "127.0.0.1" << "in port " << port[i] << endl;
-      response = central.queryServer("127.0.0.1",port[i],"00");
-    }
-    else {
-      std::cout << "querying " << addr[i] << "in port " << port[i] << endl;
-      response = central.queryServer(addr[i],port[i],"00");
-    }
-    
-    
-
-  }
-
-}
-
-void updateStates(udpClient& central,std::string *addr,int *port,int NumberOfClients){
+void updateStates(){
   int i=0;
   while(i<NumberOfClients){
     std::string response = "";
 
-    if (testMode){
-      std::cout << "querying " << "127.0.0.1" << "in port " << port[i] << endl;
-      response = central.queryServer("127.0.0.1",port[i],"AA");
-    }
-    else{
-      std::cout << "querying " << addr[i] << "in port " << port[i] << endl;
-      response = central.queryServer(addr[i],port[i],"");
-    }
-
+    std::cout << "querying in client " << i << endl;
+    response = clients[i]->queryServer("");
     micros[i].set_parameters(response.substr(0,11));
     micros[i].print();
     i++;
@@ -85,7 +67,50 @@ void updateStates(udpClient& central,std::string *addr,int *port,int NumberOfCli
   return;
 }
 
+void getBacgroungAndCoupling(double coupling[][NumberOfClients],double background[NumberOfClients]){
 
+  // initialize all workstations with LED at 0% PWM
+  for (int i=0;i<NumberOfClients;i++){
+      clients[i]->queryServer("00");
+  }
+
+  // update for background data
+  updateStates();
+
+  double aux;
+
+  // get background data
+  std::cout << "\n\n\n\n doing background \n\n\n";
+  for (int i=0;i<NumberOfClients;i++){
+    aux = 198 - micros[i].getLDR();
+    aux = aux / 33;
+    background[i] = pow(10.00,aux);
+  }
+
+
+  // coupling matrix
+  std::cout << "\n\n\n\n doing coupling \n\n\n";
+  for (int i=0;i<NumberOfClients;i++){
+
+    // change LED i to 01
+    clients[i]->queryServer("FF");
+
+    // update all info
+    updateStates();
+
+    // update coupling matrix
+    for (int j=0;j<NumberOfClients; j++){
+      std::cout << "effect of micro " << i << " in micro " << j << " is " << micros[j].getLDR() << std::endl;
+      aux = 198 - micros[j].getLDR();
+      aux = aux / 33;
+      coupling[i][j] = pow(10.00,aux);
+    }
+
+    // restore LED i to 00
+    clients[i]->queryServer("00");
+  }
+
+}
 
 int main(int argc, char **argv)
 {
@@ -93,10 +118,12 @@ int main(int argc, char **argv)
   if (argc == 2){
     testMode = true;
   }
+
    io_service io;
    udp::resolver resolver(io);
 
-   const int NumberOfClients = 8;
+   double coupling[NumberOfClients][NumberOfClients]={{0}};
+   double background[NumberOfClients]{0};
 
    std::string addrs[NumberOfClients+1];
    addrs[0] = "192.168.27.202";
@@ -119,11 +146,36 @@ int main(int argc, char **argv)
    ports[6]=17237;
    ports[7]=17238;
 
-   udpClient central(io);
+
+
+   for (int i=0;i<NumberOfClients;i++){
+     if (testMode) clients.push_back(new udpClient(io,"127.0.0.1",ports[i]));
+     else  clients.push_back(new udpClient(io,addrs[i],ports[i]));
+   }
+
+
+   //   udpClient central(io);
    std::cout << "starting update" << endl;
-   updateStates(central,addrs,ports,NumberOfClients);
+   updateStates();
    std::cout << "update finished" << endl;
 
-   
+   getBacgroungAndCoupling(coupling,background);
 
+   // print background matrix
+   std::cout << "\n\nBACKGROUND MATRIX\n\n";
+   for (int i=0; i<NumberOfClients;i++){
+     std::cout << background[i] << ",";
+   }
+   std::cout << std::endl;
+
+   // print coupling matrix
+   std::cout << "\n\nCOUPLING MATRIX\n\n";
+   for (int i=0; i<NumberOfClients;i++){
+     std::cout << "\t";
+     for (int j=0; j<NumberOfClients;j++){
+       std::cout << coupling[i][j] << ",";
+     }
+     std::cout << std::endl;
+   }
+   
 }

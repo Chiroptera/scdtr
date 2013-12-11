@@ -16,9 +16,10 @@ void Arduino::set_parameters(std::string parameters){
   int aux1=0;
 
   if(parameters.length() != 10) {
-    cout << "length " << parameters.length() << " is not 11" << endl;
+    cout << "length " << parameters.length() << " is not 10" << endl;
     return;
   }
+
   LL = stoi(parameters.substr(0,2),NULL,10);
 
   PP = stoi(parameters.substr(2,2),NULL,10);
@@ -42,4 +43,8 @@ void Arduino::print(){
 
 string Arduino::getString(){
   return to_string(LL) + "," + to_string(PP) + "," + to_string(TT) + "," + to_string(CC) + "," + to_string(DD);
+}
+
+int Arduino::getLDR(){
+  return LL;
 }
