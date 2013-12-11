@@ -48,3 +48,8 @@ string Arduino::getString(){
 int Arduino::getLDR(){
   return LL;
 }
+
+bool Arduino::getPresence(){
+  if (PP <= 50) return true;
+  else return false;
+}

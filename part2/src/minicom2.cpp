@@ -292,63 +292,69 @@ void taskRead(minicom_client *c){
 
 int main(int argc, char* argv[])
 {
-// on Unix POSIX based systems, turn off line buffering of input, so cin.get() returns after every keypress
-// On other systems, you'll need to look for an equivalent
+  // on Unix POSIX based systems, turn off line buffering of input, so cin.get() returns after every keypress
+  // On other systems, you'll need to look for an equivalent
 #ifdef POSIX
-        termios stored_settings;
-        tcgetattr(0, &stored_settings);
-        termios new_settings = stored_settings;
-        new_settings.c_lflag &= (~ICANON);
-        new_settings.c_lflag &= (~ISIG); // don't automatically handle control-C
-        tcsetattr(0, TCSANOW, &new_settings);
+  termios stored_settings;
+  tcgetattr(0, &stored_settings);
+  termios new_settings = stored_settings;
+  new_settings.c_lflag &= (~ICANON);
+  new_settings.c_lflag &= (~ISIG); // don't automatically handle control-C
+  tcsetattr(0, TCSANOW, &new_settings);
 #endif
-        try
-        {
-                if (argc != 4)
-                {
-                        cerr << "Usage: minicom <baud> <device> <port>\n";
-                        return 1;
-                }
-		
-		int port = atoi(argv[3]);
+  try
+    {
+      if (argc < 4 || argc > 6 || argc == 5)
+	{
+	  cerr << "Usage: minicom <baud> <device> <port>\n" << endl;
+	  cerr << "Usage: minicom <baud> <device> <port> <first neighbor port> <second neighbor port>\n";
+	  return 1;
+	}
+      else if (argc == 4){
+	int port = atoi(argv[3]);
+      }
+      else if (argc == 6}{
+	int port_first = atoi(argv[4]);
+	int port_second = atoi(argv[5]);
+      }
 
-                boost::asio::io_service io_service;
-                Arduino arduino;
-                // define an instance of the main class of this program
-                minicom_client c(io_service, boost::lexical_cast<unsigned int>(argv[1]), argv[2], arduino);
-                // run the IO service as a separate thread, so the main thread can block on standard input
-                //                thread t(&boost::asio::io_service::run, &io_service);
+      boost::asio::io_service io_service;
+      Arduino arduino;
+      // define an instance of the main class of this program
+      minicom_client c(io_service, boost::lexical_cast<unsigned int>(argv[1]), argv[2], arduino);
+      // run the IO service as a separate thread, so the main thread can block on standard input
+      //                thread t(&boost::asio::io_service::run, &io_service);
 
 
-                thread t(taskRead,&c);
+      thread t(taskRead,&c);
 
-                thread t2(taskWrite,&c);
+      thread t2(taskWrite,&c);
 
 
-                tcp_server tcpstuff(io_service,&c,port);
-                thread tTCP(taskTCP,&tcpstuff);
+      tcp_server tcpstuff(io_service,&c,port);
+      thread tTCP(taskTCP,&tcpstuff);
 
-                udpServer x(io_service,arduino,port);
-                thread tUDP(taskUDP,&x);
+      udpServer x(io_service,arduino,port);
+      thread tUDP(taskUDP,&x);
 
-                 while(true){ //slow print loop
-                     arduino.print();
-                //     //cout << arduino.getString() << endl;
-                //     x.write(arduino.getString());
-                     usleep(1000000);
-                 }
+      while(true){ //slow print loop
+	arduino.print();
+	//     //cout << arduino.getString() << endl;
+	//     x.write(arduino.getString());
+	usleep(1000000);
+      }
 
-                t.join(); // wait for the IO service thread to close
-                t2.join();
-                tTCP.join();
-                tUDP.join();
-        }
-        catch (exception& e)
-        {
-                cerr << "Exception: " << e.what() << "\n";
-        }
+      t.join(); // wait for the IO service thread to close
+      t2.join();
+      tTCP.join();
+      tUDP.join();
+    }
+  catch (exception& e)
+    {
+      cerr << "Exception: " << e.what() << "\n";
+    }
 #ifdef POSIX // restore default buffering of standard input
-        tcsetattr(0, TCSANOW, &stored_settings);
+  tcsetattr(0, TCSANOW, &stored_settings);
 #endif
-        return 0;
+  return 0;
 }

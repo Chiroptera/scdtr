@@ -15,6 +15,8 @@ class Arduino{
   void print();
   string getString();
   int getLDR();
+  bool getPresence();
 };
+
 
 #endif
