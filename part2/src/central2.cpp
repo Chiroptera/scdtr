@@ -10,16 +10,21 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include <unistd.h>
+
 #define M 30		//maximum number of lines for simplex
 #define N 30		//maximum number of colums for simplex
 #define V 8		//number of variables to optimize
 #define Lmin 	1	// Lum for empty desk
-#define Lmax 	50.5	// Lum for desk occupied
+#define Lmax 	10.9	// Lum for desk occupied
 
 using namespace boost::asio;
 using namespace std;
 using ip::udp;
 
+// convertion to lux constants
+const float ep = 0.1;
+const int Rlux = 100000;
 
 
 bool testMode = false;
@@ -322,15 +327,17 @@ void updateStates(int occupancy[NumberOfClients]){
   while(i<NumberOfClients){
     std::string response = "";
 
-    std::cout << "querying in client " << i << endl;
+    //    std::cout << "querying in client " << i << endl;
     response = clients[i]->queryServer("");
     micros[i].set_parameters(response.substr(0,11));
-    micros[i].print();
+    //  micros[i].print();
     occupancy[i]=micros[i].getPresence();
     i++;
   }
   return;
 }
+
+
 
 void getBackgroundAndCoupling(double coupling[][NumberOfClients],double background[NumberOfClients],int occupancy[NumberOfClients]){
 
@@ -338,11 +345,12 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
   for (int i=0;i<NumberOfClients;i++){
       clients[i]->queryServer("00");
   }
+  usleep(100000);
 
   // update for background data
   updateStates(occupancy);
 
-  double aux,resistance;
+  double aux,resistance,lux;
   // get background data
   std::cout << "\n\n\n\n doing background \n\n\n";
   for (int i=0;i<NumberOfClients;i++){
@@ -350,9 +358,10 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
     aux = aux / 33;
     //    background[i] = pow(10.00,aux);
     resistance=pow(10.00,aux);
-    aux = 100-49.5*log10(resistance/1000);
+    lux = (Rlux*(1+ep) / resistance) - ep ;
+      //    aux = 100-49.5*log10(resistance/1000);
 
-    background[i] = aux;
+    background[i] = lux;
   }
 
 
@@ -362,19 +371,24 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
 
     // change LED i to 01
     clients[i]->queryServer("01");
-
+    usleep(100000);
     // update all info
     updateStates(occupancy);
 
     // update coupling matrix
     for (int j=0;j<NumberOfClients; j++){
-      std::cout << "effect of micro " << i << " in micro " << j << " is " << micros[j].getLDR() << std::endl;
+
       aux = 198 - micros[j].getLDR();
       aux = aux / 33;
       resistance=pow(10.00,aux);
-      aux = 100-49.5*log10(resistance/1000);
-      coupling[j][i] = aux - background[i];
+      lux = (Rlux*(1+ep) / resistance) - ep ;
+      
+      //      aux = 100-49.5*log10(resistance/1000);
+
+      std::cout << lux << ",";
+      coupling[j][i] = lux - background[j];
     }
+    std::cout << std::endl;
 
     // restore LED i to 00
     clients[i]->queryServer("00");
@@ -436,6 +450,14 @@ int main(int argc, char **argv)
    std::cout << "update finished" << endl;
 
    getBackgroundAndCoupling(coupling,background,occupancy2);
+
+   // print background matrix
+   std::cout << "\n\nOCCUPANCY MATRIX\n\n";
+   for (int i=0; i<NumberOfClients;i++){
+     std::cout << occupancy2[i] << ",";
+   }
+   std::cout << std::endl;
+
 
    // print background matrix
    std::cout << "\n\nBACKGROUND MATRIX\n\n";
