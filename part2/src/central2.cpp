@@ -434,7 +434,7 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
     // change LED i to 01
     //tcpClients[i]->send("FF");
 		clients[i]->queryServer("FF");
-    usleep(500000);
+                //usleep(500000);
 
     // update all info
     updateStates();
@@ -456,7 +456,7 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
 
     // restore LED i to 00
     clients[i]->queryServer("00");
-usleep(500000);
+    //usleep(500000);
     //tcpClients[i]->send("00");
   }
 
