@@ -12,12 +12,12 @@ All rights reserved
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/asio.hpp>
-
+#include "threadhello.h"
 #include "udpserver.h"
 
 using boost::asio::ip::udp;
 
-udp_server::udp_server(boost::asio::io_service& io_service, int port_number, Micro *m)
+udp_server::udp_server(boost::asio::io_service& io_service, int port_number, minicom_client *micro)
    : socket_(io_service, udp::endpoint(udp::v4(), port_number)), micro_(m)
 {
    start_receive();
@@ -35,7 +35,7 @@ void udp_server::handle_receive(const boost::system::error_code& error)
 {
    if (!error || error == boost::asio::error::message_size)
    {
-      boost::shared_ptr<std::string> message( new std::string(micro_->FeedbackString()) );
+      boost::shared_ptr<std::string> message( new std::string(micro_->getString()) );
       socket_.async_send_to(boost::asio::buffer(*message), remote_endpoint_,
           boost::bind(&udp_server::handle_send, this, message, boost::asio::placeholders::error));
 

@@ -15,16 +15,17 @@ void Arduino::set_parameters(std::string parameters){
   //cout << "check parameters length: " << parameters.length() << endl;
   int aux1=0;
 
-  if(parameters.length() != 10) {
-    cout << "length " << parameters.length() << " is not 10" << endl;
+  if(parameters.length() != 11) {
+    cout << "length " << parameters.length() << " is not 11" << endl;
     return;
   }
 
-  LL = stoi(parameters.substr(0,2),NULL,10);
+  sendReady = parameters;
+  LL = stoi(parameters.substr(0,2));
 
-  PP = stoi(parameters.substr(2,2),NULL,10);
+  PP = stoi(parameters.substr(2,2));
 
-  TT = stoi(parameters.substr(4,2),NULL,10);
+  TT = stoi(parameters.substr(4,2));
 
   aux1 = stoi(parameters.substr(6,2), NULL, 16);
   CC = aux1*100/255;
@@ -42,7 +43,8 @@ void Arduino::print(){
 }
 
 string Arduino::getString(){
-  return to_string(LL) + "," + to_string(PP) + "," + to_string(TT) + "," + to_string(CC) + "," + to_string(DD);
+ // return to_string(LL) + "," + to_string(PP) + "," + to_string(TT) + "," + to_string(CC) + "," + to_string(DD);
+	return sendReady;
 }
 
 int Arduino::getLDR(){

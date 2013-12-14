@@ -1,15 +1,15 @@
 #include <iostream>
+#include <sstream>
 #include <boost/asio.hpp>
 #include <boost/array.hpp>
 #include <string>
 #include "threadhello.h"
 #include <vector>
 #include <math.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-
+#include <iomanip>
 #include <unistd.h>
 
 #define M 30		//maximum number of lines for simplex
@@ -21,16 +21,58 @@
 using namespace boost::asio;
 using namespace std;
 using ip::udp;
+using ip::tcp;
 
-// convertion to lux constants
+// convertion to lnux constants
 const float ep = 0.1;
 const int Rlux = 100000;
 
-
+// conditions of central
 bool testMode = false;
 const int NumberOfClients = 8;
+
+// containers for arduinos and communication clients
 boost::array<Arduino,8> micros;
 
+//simplex stuff
+static const double epsilon   = 1.0e-8;
+int equal(double a, double b) { return fabs(a-b) < epsilon; }
+
+typedef struct {
+  int m, n; // m=rows, n=columns, mat[m x n]
+  double mat[M][N];
+} Tableau;
+
+double opt_sol[NumberOfClients]; //values to send to the arduinos
+
+
+class tcp_client{
+public:
+  tcp_client (boost::asio::io_service& io, std::string addr, int port)
+        : _io(io),
+					_port(port),
+					_addr(addr),
+          _resolver(io),
+          _socket(io)
+    {}
+
+void send(std::string message){
+	tcp::resolver::query query(_addr,std::to_string(_port));
+	tcp::resolver::iterator endpoint=_resolver.resolve(query);
+	boost::system::error_code err;
+
+  _socket.connect(*endpoint,err);
+	int l=write(_socket,buffer(message.c_str(),strlen(message.c_str())));
+  std::cout << "bytes sent" << l << std::endl;
+}
+
+private:
+  boost::asio::io_service& _io;
+  tcp::socket _socket;
+  tcp::resolver _resolver;
+  std::string _addr;
+  int _port;
+};
 
 class udpClient{
 public:
@@ -69,16 +111,10 @@ private:
 
 
 std::vector<udpClient*> clients;
+std::vector<tcp_client*> tcpClients;
 
-static const double epsilon   = 1.0e-8;
-int equal(double a, double b) { return fabs(a-b) < epsilon; }
 
-typedef struct {
-  int m, n; // m=rows, n=columns, mat[m x n]
-  double mat[M][N];
-} Tableau;
 
-double opt_sol[NumberOfClients];
 
 
 void pivot_on(Tableau *tab, int row, int col) {
@@ -213,8 +249,17 @@ void simplex(Tableau *tab) {
 
 void nl(int k){
 	int j;
-	for(j=0;j<k;j++) putchar('-'); 
-	putchar('\n'); 
+	for(j=0;j<k;j++) putchar('-');
+	putchar('\n');
+}
+
+void get_optimal_vector_clean(Tableau *tab) {
+    int j, k;
+    k=tab->n-V;
+    for(j=tab->n-V; j<tab->n; j++){ // for each line of the slack variables.
+        opt_sol[j-k]=tab->mat[0][j];
+        tab->mat[0][j]=0;
+    }
 }
 
 
@@ -245,40 +290,31 @@ void print_tableau(Tableau *tab) {
 int simplexDummy(double E[][NumberOfClients],double O[NumberOfClients],int occupancy[NumberOfClients])
 {
 
-   // print background matrix
-   std::cout << "\n\nBACKGROUND MATRIX\n\n";
-   for (int i=0; i<NumberOfClients;i++){
-     std::cout << O[i] << ",";
-   }
-   std::cout << std::endl;
-
-   // print coupling matrix
-   std::cout << "\n\nCOUPLING MATRIX\n\n";
-   for (int i=0; i<NumberOfClients;i++){
-     std::cout << "\t";
-     for (int j=0; j<NumberOfClients;j++){
-       std::cout << E[i][j] << ",";
-     }
-     std::cout << std::endl;
-   }
-
-
 Tableau tab;
 
-tab.m=NumberOfClients+1;	// number of conditons + 1 (cost_function)	
-tab.n=NumberOfClients+1;	// number of variables + 1 (b)
-
 int i, j;
-	
+
 int Ldes[NumberOfClients];		// Desired luminace in each desk
-int b[NumberOfClients];		// luminance to provide in each desk
+float b[NumberOfClients];		// luminance to provide in each desk
+//float E[NumberOfClients][NumberOfClients];		// crossed influences
 float E_t[NumberOfClients][NumberOfClients];	// the transposed of the crossed influences
 
 int cost[NumberOfClients]={1,1,1,1,1,1,1,1};			   // cost -> in the simplex they will be constraints: >= 1 (all LEDs penalized equaly)
+//int occupancy[NumberOfClients]={1, 0, 1, 1, 0, 0, 0, 1};	   // states of the desks -> free or occupied (example)
+//int O[NumberOfClients]={100, 100, 100, 100, 100, 100, 100, 100};  //environment luminance
+
+
+//fill the matrix of the PWM LEDs as an identity matrix and the crossed influences with an example
+// for(i=0; i<NumberOfClients; i++){
+// 	for(j=0; j<NumberOfClients; j++){
+// 		if(i==j) E[i][j]=1000;
+// 		else     E[i][j]=100;
+// 	}
+// }
 
 // calculate the luminance we need to provide in each desk
 for(i=0; i<NumberOfClients; i++){
-	if(occupancy[i]==0) Ldes[i]=Lmin; 	// desk free 
+	if(occupancy[i]==0) Ldes[i]=Lmin; 	// desk free
 	else Ldes[i]=Lmax;			// desk occupied
 	b[i]=Ldes[i]-O[i];			// luminace constraint result L-O
 }
@@ -290,26 +326,52 @@ for(i=0; i<NumberOfClients; i++){
 }
 
 
-//Construction of the tableu based on the data of the problem
+
+tab.m=NumberOfClients+1;	// number of conditons + 1 (cost_function)
+tab.n=2*NumberOfClients+1;	// number of variables + 2 (b e -v)
+
+/********************************************************************/
+//Construction of the tableu based on the data of the problem;
+
 for(i=0; i<tab.m; i++){
-	for(j=0; j<tab.n; j++){
+	for(j=0; j<9; j++){
 		if(i==0 && j==0) tab.mat[0][0]=0;
 		if(i==0 && j!=0) tab.mat[0][j]=b[j-1];
 		if(i!=0 && j==0) tab.mat[i][0]=cost[i-1];
 		if(i!=0 && i<=NumberOfClients && j!=0) tab.mat[i][j]=E_t[i-1][j-1];
 		}
-}		
+}
+
+
+//add the -v variable to ensure the limite pwm<=1. Without this the Optimal solution can have leds with pwm higher than 1 !!!
+for(i=0; i<tab.m; i++){
+	for(j=9; j<tab.n; j++){
+		if(i==j-8) tab.mat[i][j]=-1;
+		else tab.mat[i][j]=0;
+		}
+	}
+for(i=9; i<17; i++) tab.mat[0][i]=-1;
 
 // change signs of the first row
 for(i=0; i<tab.n; i++) tab.mat[0][i]= -tab.mat[0][i];
- print_tableau(&tab);
+
+/*******************************************************************/
+
+  print_tableau(&tab);
   simplex(&tab);
- print_tableau(&tab);
   printf("Solution: ");
   for(j=0; j<NumberOfClients; j++) printf("X%d=%3.6lf ",j+1,opt_sol[j]);
   printf("\n");
+
+
+/***** clean slack variables and clean solution **/
+
+
   return 0;
-} 
+}
+
+
+
 
 
 /******************************************
@@ -322,16 +384,17 @@ COMMUNICATION
 
 
 
-void updateStates(int occupancy[NumberOfClients]){
+void updateStates(){
   int i=0;
   while(i<NumberOfClients){
     std::string response = "";
 
-    //    std::cout << "querying in client " << i << endl;
+    std::cout << "querying in client " << i << endl;
     response = clients[i]->queryServer("");
-    micros[i].set_parameters(response.substr(0,11));
+		std::cout << "got response " << response << std::endl;
+                micros[i].set_parameters(std::string(response+" ").substr(0,11));
     //  micros[i].print();
-    occupancy[i]=micros[i].getPresence();
+    //occupancy[i]=micros[i].getPresence();
     i++;
   }
   return;
@@ -339,16 +402,17 @@ void updateStates(int occupancy[NumberOfClients]){
 
 
 
-void getBackgroundAndCoupling(double coupling[][NumberOfClients],double background[NumberOfClients],int occupancy[NumberOfClients]){
+void getBackgroundAndCoupling(double coupling[][NumberOfClients],double background[NumberOfClients]){
 
   // initialize all workstations with LED at 0% PWM
   for (int i=0;i<NumberOfClients;i++){
+			//tcpClients[i]->send("00");
       clients[i]->queryServer("00");
   }
   usleep(100000);
 
   // update for background data
-  updateStates(occupancy);
+  updateStates();
 
   double aux,resistance,lux;
   // get background data
@@ -356,10 +420,8 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
   for (int i=0;i<NumberOfClients;i++){
     aux = 198 - micros[i].getLDR();
     aux = aux / 33;
-    //    background[i] = pow(10.00,aux);
     resistance=pow(10.00,aux);
     lux = (Rlux*(1+ep) / resistance) - ep ;
-      //    aux = 100-49.5*log10(resistance/1000);
 
     background[i] = lux;
   }
@@ -370,10 +432,12 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
   for (int i=0;i<NumberOfClients;i++){
 
     // change LED i to 01
-    clients[i]->queryServer("01");
-    usleep(100000);
+    //tcpClients[i]->send("FF");
+		clients[i]->queryServer("FF");
+    usleep(500000);
+
     // update all info
-    updateStates(occupancy);
+    updateStates();
 
     // update coupling matrix
     for (int j=0;j<NumberOfClients; j++){
@@ -382,36 +446,76 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
       aux = aux / 33;
       resistance=pow(10.00,aux);
       lux = (Rlux*(1+ep) / resistance) - ep ;
-      
-      //      aux = 100-49.5*log10(resistance/1000);
 
       std::cout << lux << ",";
-      coupling[j][i] = lux - background[j];
+
+			aux =  lux - background[j];
+      coupling[j][i] = aux/100;
     }
     std::cout << std::endl;
 
     // restore LED i to 00
     clients[i]->queryServer("00");
+usleep(500000);
+    //tcpClients[i]->send("00");
   }
 
 
 }
 
+void updateOccupancy(int occupancy[NumberOfClients]){
+	for (int i=0;i<NumberOfClients;i++){
+		occupancy[i]=micros[i].getPresence();
+	}
+
+}
+
+void sendBackgroundToClients(double background[NumberOfClients]){
+    std::string msg;
+    for (int j=0;j<NumberOfClients;j++){
+        for (int i=0;i<NumberOfClients;i++){
+            msg="B" + std::to_string(j) + std::to_string(background[j]);
+            clients[i]->queryServer(msg);
+        }
+    }
+}
+
+void sendCouplingToClients(double coupling[][NumberOfClients]){
+    std::string msg;
+    for (int j=0;j<NumberOfClients;j++){ // line
+        for (int i=0;i<NumberOfClients;i++){ // column
+            for (int n=0;n<NumberOfClients;n++){ // client
+                msg="C" + std::to_string(j) + std::to_string(i) + std::to_string(coupling[i][j]);
+            }
+        }
+    }
+}
+
+template<typename T>
+std::string int_to_hex( T i ){
+    std::stringstream stream;
+    stream << std::hex << i;
+}
 
 
 int main(int argc, char **argv)
 {
-
-  if (argc == 2){
-    testMode = true;
-  }
+    std::string arg;
+    int Mode = 0;
+    if (argc == 2){
+        testMode = true;
+        arg = std::string(argv[1]);
+        // if (arg == '-t') testMode = true;
+        // else if (arg == '-d') Mode = 1;
+        // else if (arg == '-s') Mode = 2;
+    }
 
    io_service io;
    udp::resolver resolver(io);
 
    double coupling[NumberOfClients][NumberOfClients]={{0}};
    double background[NumberOfClients]={0};
-   int occupancy2[NumberOfClients]={0};
+   int occupancy[NumberOfClients]={0};
    double commands[NumberOfClients];
 
    std::string addrs[NumberOfClients+1];
@@ -423,7 +527,7 @@ int main(int argc, char **argv)
    addrs[5] = "192.168.27.207";
    addrs[6] = "192.168.27.208";
    addrs[7] = "192.168.27.209";
-   addrs[8] = "192.168.27.201"; //professor computer
+   addrs[NumberOfClients] = "192.168.27.201"; //professor's computer
 
    int ports[NumberOfClients];
    ports[0]=17231;
@@ -435,26 +539,31 @@ int main(int argc, char **argv)
    ports[6]=17237;
    ports[7]=17238;
 
-
-
-
+   // fill communication containers with TCP and UDP client objects
    for (int i=0;i<NumberOfClients;i++){
-     if (testMode) clients.push_back(new udpClient(io,"127.0.0.1",ports[i]));
-     else  clients.push_back(new udpClient(io,addrs[i],ports[i]));
+       if (testMode){
+           clients.push_back(new udpClient(io,"127.0.0.1",ports[i]));
+           tcpClients.push_back(new tcp_client(io,"127.0.0.1",ports[i]));
+       }
+       else{
+           clients.push_back(new udpClient(io,addrs[i],ports[i]));
+           tcpClients.push_back(new tcp_client(io,addrs[i],ports[i]));
+       }
    }
 
-
    //   udpClient central(io);
-   std::cout << "starting update" << endl;
-   updateStates(occupancy2);
-   std::cout << "update finished" << endl;
+   std::cout << "\n\nInitial update...\n\n" << endl;
+   updateStates();
+   std::cout << "\n\nInitial update finished.\n\n" << endl;
 
-   getBackgroundAndCoupling(coupling,background,occupancy2);
+   updateOccupancy(occupancy);
+
+   getBackgroundAndCoupling(coupling,background);
 
    // print background matrix
    std::cout << "\n\nOCCUPANCY MATRIX\n\n";
    for (int i=0; i<NumberOfClients;i++){
-     std::cout << occupancy2[i] << ",";
+     std::cout << occupancy[i] << ",";
    }
    std::cout << std::endl;
 
@@ -476,12 +585,19 @@ int main(int argc, char **argv)
      std::cout << std::endl;
    }
 
+   // if (Mode == 1){
+   //     std::cout << "Sending background and coupling to clients..." << std::endl;
+   //     sendBackgroungToClients(background);
+   //     sendCouplingToClients(coupling);
+   // }
+
+
    // //fill the matrix of the PWM LEDs as an identity matrix and the crossed influences with an example
    // for(int i=0; i<NumberOfClients; i++){
    //   for(int j=0; j<NumberOfClients; j++){
-   //     if(i==j) coupling[i][j]=1000;	
-   //     else     coupling[i][j]=100;		
-   //   }			
+   //     if(i==j) coupling[i][j]=1000;
+   //     else     coupling[i][j]=100;
+   //   }
    // }
 
    //occupancy2[0]=1;
@@ -493,8 +609,22 @@ int main(int argc, char **argv)
    // occupancy2[6]=0;
    // occupancy2[7]=1;
 
+	//opt_sol
 
-   
-   simplexDummy(coupling,background,occupancy2);
-   
+   simplexDummy(coupling,background,occupancy);
+
+   // send optimal solution to clients
+
+   Mode = 2;
+   if (Mode == 2){
+       for (int i=0;i<NumberOfClients;i++){
+           int valueToSend = (int) opt_sol[i] * 255;
+           std::stringstream stream;
+           stream << std::hex << valueToSend;
+           std::string msg = stream.str();
+           std::cout << "data to send " << msg << std::endl;
+           clients[i]->queryServer(msg);
+       }
+   }
+
 }
