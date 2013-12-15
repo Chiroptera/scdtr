@@ -1,0 +1,12 @@
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+
+#define M 30		//maximum number of lines for simplex
+#define N 30		//maximum number of colums for simplex
+#define V 8		//number of variables to optimize
+#define Lmin 	1	// Lum for empty desk
+#define Lmax 	50.5	// Lum for desk occupied
+
+double opt_sol[NumberOfClients];
