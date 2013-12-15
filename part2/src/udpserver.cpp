@@ -57,18 +57,12 @@ void udp_server::handle_receive(const boost::system::error_code& error, std::siz
        // std::cout << "DATA RECEIVED FROM " << senderAdd << std::endl;
        // std::cout << "BYTES RECEIVED: " << bytes_transferred << "DATA: " << data << std::endl;
 
-       // if the sender was neighbour 1 the message is a status message
-       if (senderAdd == state_.add1){
-           state_.micro1_.set_parameters(data);
-       }
+       int parseResult = state_.parseState(data,senderAdd);
 
-       // if the sender was neighbour 2 the message is a status message
-       else if (senderAdd == state_.add2){
-           state_.micro2_.set_parameters(data);
-       }
+       if (parseResult == -1){
 
-       // else echo my status back to sender and update status
-       else {
+       // parseResult returns -1 if it doesn't deal with the parsing automaticly
+
            boost::shared_ptr<std::string> message( new std::string(state_.micro_.getString()));
            socket_.async_send_to(boost::asio::buffer(*message), remote_endpoint_,
                                  boost::bind(&udp_server::handle_send, this, message, boost::asio::placeholders::error));
@@ -82,11 +76,6 @@ void udp_server::handle_receive(const boost::system::error_code& error, std::siz
            if(!is.fail())
                std::cout << "WRITING TO ARDUINO " << val << std::endl;
        }
-
-      /*
-        code for parsing matrix
-
-       */
 
       start_receive();
    }

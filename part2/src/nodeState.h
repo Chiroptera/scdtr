@@ -28,6 +28,7 @@ class nodeState
     std::string getStringN2();
     void setParametersN2(std::string state);
 
+    void setMyOccupancy(int occ);
     void setOccupancy(std::string occ);
     int getOccupancy(int pos);
 
@@ -37,6 +38,8 @@ class nodeState
     void setCoupling(std::string coup);
     float getCoupling(int line, int col);
 
+    std::string getOccString();
+    int parseState(std::string msg, std::string sender);
  public:
     Arduino micro_;
     int myOccPos;

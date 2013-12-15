@@ -1,5 +1,8 @@
 #include <string>
+#include <iostream>
+#include <sstream>
 #include "threadhello.h"
+#include <stdlib.h>
 #include "nodeState.h"
 
 nodeState::nodeState(int myPort, std::string neighbour1Add, std::string neighbour2Add)
@@ -7,6 +10,15 @@ nodeState::nodeState(int myPort, std::string neighbour1Add, std::string neighbou
 
 {
     myOccPos = myPort % 10 - 1;
+    for (int i=0;i<8;i++)
+    {
+        occupancy_[i]=0;
+        background_[i]=0;
+        for (int j=0;j<8;j++)
+        {
+            coupling_[i][j]=0;
+        }
+    }
 }
 
 std::string nodeState::getStringSelf(){
@@ -33,8 +45,15 @@ void nodeState::setParametersN2(std::string state){
     micro2_.set_parameters(state);
 }
 
+void nodeState::setMyOccupancy(int occ){
+    if (occ != 0 || occ != 1) return;
+    occupancy_[myOccPos]=occ;
+}
+
 void nodeState::setOccupancy(std::string occ){
+    std::cout << "GOT OCCUPANCY" << occ << std::endl;
     for (int i=0;i<8;i++){
+        if (i==myOccPos) continue;
         occupancy_[i] = (occ[i+1] == '1') ? 1 : 0;
     }
 }
@@ -44,9 +63,10 @@ int nodeState::getOccupancy(int pos){
 }
 
 void nodeState::setBackground(std::string bck){
-    for (int i=0;i<8;i++){
-        background_[i] = (bck[i+1] == '1') ? 1 : 0;
-    }
+    int i = atoi(bck.substr(1,1).c_str());
+    float value = atof(bck.substr(2,bck.back()).c_str());
+    background_[i] = value;
+
 }
 
 float nodeState::getBackground(int pos){
@@ -56,10 +76,42 @@ float nodeState::getBackground(int pos){
 void nodeState::setCoupling(std::string coup){
     int j = atoi(coup.substr(1,1).c_str());
     int i = atoi(coup.substr(2,1).c_str());
-    float value = atoi(coup.substr(3,coup.back()).c_str());
+    float value = atof(coup.substr(3,coup.back()).c_str());
     coupling_[j][i] = value;
 }
 
 float nodeState::getCoupling(int line, int col){
     return coupling_[line][col];
+}
+
+std::string nodeState::getOccString(){
+    std::stringstream out;
+    out << "O";
+    for (int i=0;i<8;i++){
+        out << std::dec << occupancy_[i];
+    }
+    return out.str();
+}
+
+int nodeState::parseState(std::string msg, std::string sender){
+    if (msg[0] == 'O'){
+        setOccupancy(msg);
+    }
+    else if (msg[0] == 'B'){
+        setBackground(msg);
+    }
+    else if (msg[0] == 'C'){
+        setCoupling(msg);
+    }
+    else if (sender == add1){
+        micro1_.set_parameters(msg);
+    }
+    else if (sender == add2){
+        micro2_.set_parameters(msg);
+    }
+    else {
+        return -1;
+    }
+
+    return 0;
 }

@@ -36,12 +36,13 @@ using namespace std;
 void taskEchoState(udpClient *client,nodeState *state)
 {
 for(;;)
-         {
-client->echo(state->micro_.getString());
-usleep(100000);
-}
+    {
+        client->echo(state->micro_.getString());
+        client->echo(state->getOccString());
+        usleep(100000);
+        }
 
-             }
+        }
 
 
 int main(int argc,char** argv){
