@@ -38,7 +38,7 @@ void taskEchoState(udpClient *client,nodeState *state,int mode)
 if (mode == 1) return;
 for(;;)
     {
-        client->echo(state->micro_.getString());
+client->echo(state->micro_.getString());
         client->echo(state->getOccString());
         usleep(100000);
         }
@@ -51,7 +51,7 @@ int main(int argc,char** argv){
 int myPort,neighbour1Port,neighbour2Port;
     std::string neighbour1Add,neighbour2Add;
     std::string neighborAddFirst, neighborAddSecond, token = ":";
-
+        int mode =0;
     if (argc!=4)
     {
         cerr << "Usage: testnode <my port> <neighbour 1 add:port> <neighbour 1 add:port> \n" << endl;
@@ -77,7 +77,6 @@ int myPort,neighbour1Port,neighbour2Port;
 
     }
 
-    int mode = 0;
 
 
     boost::asio::io_service io_service;
@@ -91,7 +90,7 @@ int myPort,neighbour1Port,neighbour2Port;
 udpClient cNeighbour1(io_service,neighbour1Add,neighbour1Port);
 udpClient cNeighbour2(io_service,neighbour2Add,neighbour2Port);
 
-    mode=1;
+
     std::thread tNeighbour1(boost::bind(taskEchoState,&cNeighbour1,&state,mode));
         std::thread tNeighbour2(boost::bind(taskEchoState,&cNeighbour2,&state,mode));
 

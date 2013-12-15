@@ -1,16 +1,20 @@
 #include <iostream>
 #include <sstream>
+#include <iomanip>
+
 #include <boost/asio.hpp>
+
 #include <boost/array.hpp>
-#include <string>
-#include "threadhello.h"
 #include <vector>
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <iomanip>
+#include <string>
 #include <unistd.h>
+
+#include "threadhello.h"
 
 #define M 30		//maximum number of lines for simplex
 #define N 30		//maximum number of colums for simplex
@@ -491,10 +495,14 @@ int main(int argc, char **argv)
     int Mode = 0;
     if (argc == 2){
         testMode = true;
-        // arg = std::string(argv[1],strlen(argv[1]));
-        // if (strcmp(argv[1],'-t')) testMode = true;
-        // else if (strcmp(argv[1],'-d')) Mode = 1;
-        //          else if (strcmp(argv[1],'-s')) Mode = 2;
+        arg = std::string(argv[1]);
+        if (arg == "-t") Mode = 1;
+        else if (arg == "-d") Mode = 2;
+    }
+    else if (argc > 2){
+        std::cerr << "Usage: central <option>" << std::endl;
+        std::cerr << "\t-t for test mode." << std::endl;
+        std::cerr << "\t-d for distributed mode." << std::endl;
     }
 
    io_service io;
@@ -505,24 +513,32 @@ int main(int argc, char **argv)
    int occupancy[NumberOfClients]={0};
    double commands[NumberOfClients];
 
-   //fill the matrix of the PWM LEDs as an identity matrix and the crossed influences with an example
-   for(int i=0; i<NumberOfClients; i++){
-     for(int j=0; j<NumberOfClients; j++){
-       if(i==j) coupling[i][j]=1000;
-       else     coupling[i][j]=100;
-     }
-   }
 
-   for(int i=0;i<NumberOfClients;i++){
-       background[i]=i*0.001;
-}
+   /*
+
+     FILL THE MATRICES WITH DUMMY VALUES
+
+    */
+
+   // for(int i=0; i<NumberOfClients; i++){
+   //     for(int j=0; j<NumberOfClients; j++){
+   //         if(i==j) coupling[i][j]=1000;
+   //         else     coupling[i][j]=100;
+   //     }
+   // }
+
+   // for(int i=0;i<NumberOfClients;i++){
+   //     background[i]=i*0.001;
+   // }
 
 
    std::string addrs[NumberOfClients+1];
+   // VB address
    addrs[0] = "192.168.56.102";
    addrs[1] = "192.168.56.103";
    addrs[2] = "192.168.56.104";
 
+   // real address
    // addrs[0] = "192.168.27.202";
    // addrs[1] = "192.168.27.204";
    // addrs[2] = "192.168.27.203";
@@ -535,10 +551,13 @@ int main(int argc, char **argv)
    addrs[NumberOfClients] = "192.168.27.201"; //professor's computer
 
    int ports[NumberOfClients];
+
+   // VB ports
    ports[0]=17232;
    ports[1]=17233;
    ports[2]=17234;
 
+   // real ports
    // ports[0]=17231;
    // ports[1]=17232;
    // ports[2]=17233;
@@ -550,7 +569,7 @@ int main(int argc, char **argv)
 
    // fill communication containers with TCP and UDP client objects
    for (int i=0;i<NumberOfClients;i++){
-       if (testMode){
+       if (Mode == 1){
            clients.push_back(new udpClient(io,"127.0.0.1",ports[i]));
        }
        else{
@@ -563,13 +582,16 @@ int main(int argc, char **argv)
    updateStates();
    std::cout << "\n\nInitial update finished.\n\n" << endl;
 
-   sendBackgroundToClients(background);
-   sendCouplingToClients(coupling);
-   return 1;
 
-   //   updateOccupancy(occupancy);
+   if (Mode == 2){
+       sendBackgroundToClients(background);
+       sendCouplingToClients(coupling);
+       return 1;
+   }
 
-   //getBackgroundAndCoupling(coupling,background);
+      updateOccupancy(occupancy);
+
+   getBackgroundAndCoupling(coupling,background);
 
    // print background matrix
    std::cout << "\n\nOCCUPANCY MATRIX\n\n";
@@ -577,7 +599,6 @@ int main(int argc, char **argv)
      std::cout << occupancy[i] << ",";
    }
    std::cout << std::endl;
-
 
    // print background matrix
    std::cout << "\n\nBACKGROUND MATRIX\n\n";
@@ -596,31 +617,25 @@ int main(int argc, char **argv)
      std::cout << std::endl;
    }
 
-   // if (Mode == 1){
-   //     std::cout << "Sending background and coupling to clients..." << std::endl;
-   //     sendBackgroungToClients(background);
-   //     sendCouplingToClients(coupling);
-   // }
 
+   for (;;){
 
+       //compute optimal solution to opt_sol
+       simplexDummy(coupling,background,occupancy);
 
+       // send optimal solution to clients
+       if (Mode == 0 or Mode == 1)
+       {
+           for (int i=0;i<NumberOfClients;i++)
+           {
+               int valueToSend = (int) opt_sol[i] * 255;
+               std::stringstream stream;
 
-   //opt_sol
-
-   simplexDummy(coupling,background,occupancy);
-
-   // send optimal solution to clients
-
-   Mode = 2;
-   if (Mode == 2){
-       for (int i=0;i<NumberOfClients;i++){
-           int valueToSend = (int) opt_sol[i] * 255;
-           std::stringstream stream;
-           stream << std::hex << valueToSend;
-           std::string msg = stream.str();
-           std::cout << "data to send " << msg << std::endl;
-           clients[i]->queryServer(msg);
+               stream << std::setfill('0') << std::setw(2) << std::hex << valueToSend;
+               std::string msg = stream.str();
+               std::cout << "data to send " << msg << std::endl;
+               clients[i]->queryServer(msg);
+           }
        }
    }
-
 }
