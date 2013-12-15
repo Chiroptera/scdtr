@@ -51,7 +51,7 @@ void nodeState::setMyOccupancy(int occ){
 }
 
 void nodeState::setOccupancy(std::string occ){
-    std::cout << "GOT OCCUPANCY" << occ << std::endl;
+
     for (int i=0;i<8;i++){
         if (i==myOccPos) continue;
         occupancy_[i] = (occ[i+1] == '1') ? 1 : 0;
@@ -95,12 +95,15 @@ std::string nodeState::getOccString(){
 
 int nodeState::parseState(std::string msg, std::string sender){
     if (msg[0] == 'O'){
+        std::cout << "GOT OCCUPANCY " << msg << "FROM " << sender << std::endl;
         setOccupancy(msg);
     }
     else if (msg[0] == 'B'){
+        std::cout << "GOT BACKGROUND " << msg << "FROM " << sender << std::endl;
         setBackground(msg);
     }
     else if (msg[0] == 'C'){
+        std::cout << "GOT COUPLING " << msg << "FROM " << sender << std::endl;
         setCoupling(msg);
     }
     else if (sender == add1){

@@ -19,9 +19,8 @@
 #define Lmax 	10.9	// Lum for desk occupied
 
 using namespace boost::asio;
+using boost::asio::ip::udp;
 using namespace std;
-using ip::udp;
-using ip::tcp;
 
 // convertion to lnux constants
 const float ep = 0.1;
@@ -46,33 +45,6 @@ typedef struct {
 double opt_sol[NumberOfClients]; //values to send to the arduinos
 
 
-class tcp_client{
-public:
-  tcp_client (boost::asio::io_service& io, std::string addr, int port)
-        : _io(io),
-					_port(port),
-					_addr(addr),
-          _resolver(io),
-          _socket(io)
-    {}
-
-void send(std::string message){
-	tcp::resolver::query query(_addr,std::to_string(_port));
-	tcp::resolver::iterator endpoint=_resolver.resolve(query);
-	boost::system::error_code err;
-
-  _socket.connect(*endpoint,err);
-	int l=write(_socket,buffer(message.c_str(),strlen(message.c_str())));
-  std::cout << "bytes sent" << l << std::endl;
-}
-
-private:
-  boost::asio::io_service& _io;
-  tcp::socket _socket;
-  tcp::resolver _resolver;
-  std::string _addr;
-  int _port;
-};
 
 class udpClient{
 public:
@@ -101,6 +73,17 @@ public:
         return (std::string(recv_buf.data()).substr(0,len));
     }
 
+    void sendData(std::string message)
+{
+    udp::resolver::query query(udp::v4(),_addr,std::to_string(_port));
+    udp::endpoint receiver = *_resolver.resolve(query);
+
+    _socket.open(udp::v4());
+
+    _socket.send_to(buffer(message.c_str(),strlen(message.c_str())),receiver);
+    _socket.close();
+
+}
 private:
   boost::asio::io_service& _io;
   udp::socket _socket;
@@ -111,7 +94,7 @@ private:
 
 
 std::vector<udpClient*> clients;
-std::vector<tcp_client*> tcpClients;
+
 
 
 
@@ -396,6 +379,7 @@ void updateStates(){
     //  micros[i].print();
     //occupancy[i]=micros[i].getPresence();
     i++;
+    if(i>2) break;
   }
   return;
 }
@@ -474,8 +458,9 @@ void sendBackgroundToClients(double background[NumberOfClients]){
     std::string msg;
     for (int j=0;j<NumberOfClients;j++){
         for (int i=0;i<NumberOfClients;i++){
+            if (i>2) break;
             msg="B" + std::to_string(j) + std::to_string(background[j]);
-            clients[i]->queryServer(msg);
+            clients[i]->sendData(msg);
         }
     }
 }
@@ -485,7 +470,9 @@ void sendCouplingToClients(double coupling[][NumberOfClients]){
     for (int j=0;j<NumberOfClients;j++){ // line
         for (int i=0;i<NumberOfClients;i++){ // column
             for (int n=0;n<NumberOfClients;n++){ // client
+                if (n>2) break;
                 msg="C" + std::to_string(j) + std::to_string(i) + std::to_string(coupling[i][j]);
+                clients[n]->sendData(msg);
             }
         }
     }
@@ -504,10 +491,10 @@ int main(int argc, char **argv)
     int Mode = 0;
     if (argc == 2){
         testMode = true;
-        arg = std::string(argv[1]);
-        // if (arg == '-t') testMode = true;
-        // else if (arg == '-d') Mode = 1;
-        // else if (arg == '-s') Mode = 2;
+        // arg = std::string(argv[1],strlen(argv[1]));
+        // if (strcmp(argv[1],'-t')) testMode = true;
+        // else if (strcmp(argv[1],'-d')) Mode = 1;
+        //          else if (strcmp(argv[1],'-s')) Mode = 2;
     }
 
    io_service io;
@@ -518,21 +505,43 @@ int main(int argc, char **argv)
    int occupancy[NumberOfClients]={0};
    double commands[NumberOfClients];
 
+   //fill the matrix of the PWM LEDs as an identity matrix and the crossed influences with an example
+   for(int i=0; i<NumberOfClients; i++){
+     for(int j=0; j<NumberOfClients; j++){
+       if(i==j) coupling[i][j]=1000;
+       else     coupling[i][j]=100;
+     }
+   }
+
+   for(int i=0;i<NumberOfClients;i++){
+       background[i]=i*0.001;
+}
+
+
    std::string addrs[NumberOfClients+1];
-   addrs[0] = "192.168.27.202";
-   addrs[1] = "192.168.27.204";
-   addrs[2] = "192.168.27.203";
+   addrs[0] = "192.168.56.102";
+   addrs[1] = "192.168.56.103";
+   addrs[2] = "192.168.56.104";
+
+   // addrs[0] = "192.168.27.202";
+   // addrs[1] = "192.168.27.204";
+   // addrs[2] = "192.168.27.203";
    addrs[3] = "192.168.27.206";
    addrs[4] = "192.168.27.205";
    addrs[5] = "192.168.27.207";
    addrs[6] = "192.168.27.208";
    addrs[7] = "192.168.27.209";
+
    addrs[NumberOfClients] = "192.168.27.201"; //professor's computer
 
    int ports[NumberOfClients];
-   ports[0]=17231;
-   ports[1]=17232;
-   ports[2]=17233;
+   ports[0]=17232;
+   ports[1]=17233;
+   ports[2]=17234;
+
+   // ports[0]=17231;
+   // ports[1]=17232;
+   // ports[2]=17233;
    ports[3]=17234;
    ports[4]=17235;
    ports[5]=17236;
@@ -543,11 +552,9 @@ int main(int argc, char **argv)
    for (int i=0;i<NumberOfClients;i++){
        if (testMode){
            clients.push_back(new udpClient(io,"127.0.0.1",ports[i]));
-           tcpClients.push_back(new tcp_client(io,"127.0.0.1",ports[i]));
        }
        else{
            clients.push_back(new udpClient(io,addrs[i],ports[i]));
-           tcpClients.push_back(new tcp_client(io,addrs[i],ports[i]));
        }
    }
 
@@ -556,9 +563,13 @@ int main(int argc, char **argv)
    updateStates();
    std::cout << "\n\nInitial update finished.\n\n" << endl;
 
-   updateOccupancy(occupancy);
+   sendBackgroundToClients(background);
+   sendCouplingToClients(coupling);
+   return 1;
 
-   getBackgroundAndCoupling(coupling,background);
+   //   updateOccupancy(occupancy);
+
+   //getBackgroundAndCoupling(coupling,background);
 
    // print background matrix
    std::cout << "\n\nOCCUPANCY MATRIX\n\n";
@@ -592,24 +603,9 @@ int main(int argc, char **argv)
    // }
 
 
-   // //fill the matrix of the PWM LEDs as an identity matrix and the crossed influences with an example
-   // for(int i=0; i<NumberOfClients; i++){
-   //   for(int j=0; j<NumberOfClients; j++){
-   //     if(i==j) coupling[i][j]=1000;
-   //     else     coupling[i][j]=100;
-   //   }
-   // }
 
-   //occupancy2[0]=1;
-    // occupancy2[1]=0;
-   // occupancy2[2]=1;
-   // occupancy2[3]=1;
-   // occupancy2[4]=0;
-   // occupancy2[5]=0;
-   // occupancy2[6]=0;
-   // occupancy2[7]=1;
 
-	//opt_sol
+   //opt_sol
 
    simplexDummy(coupling,background,occupancy);
 

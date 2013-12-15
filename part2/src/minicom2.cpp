@@ -1,29 +1,24 @@
-/* minicom.cpp
-        A simple demonstration minicom client with Boost asio
-
-        Parameters:
-                baud rate
-                serial port (eg /dev/ttyS0 or COM1)
-
-        To end the application, send Ctrl-C on standard input
-*/
-
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
+
 #include <boost/array.hpp>
 #include <vector>
-#include <thread>
 #include <deque>
+
+#include <thread>
+
 #include <string>
 #include <ctype.h>
-#include "threadhello.h"
-#include <boost/array.hpp>
 
 #include <sstream>
 #include <iostream>
+
 #include <boost/lexical_cast.hpp>
 
-
+#include "nodeState.h"
+#include "threadhello.h"
+#include "udpserver.h"
+#include "udpClientClass.h"
 
 #ifdef POSIX
 #include <termios.h>
@@ -31,84 +26,16 @@
 
 
 using namespace boost::asio;
-using ip::udp;
 using namespace std;
-using boost::asio::ip::tcp;
-using boost::asio::ip::udp;
-
-class udpClient{
-public:
-    udpClient(boost::asio::io_service& io, std::string addr, int port)
-        : _io(io),
-          _resolver(io),
-          _socket(io),
-	  _addr(addr),
-	  _port(port)
-    {}
-
-    std::string queryServer(std::string message){
-        udp::resolver::query query(udp::v4(),_addr,std::to_string(_port));
-        udp::endpoint receiver = *_resolver.resolve(query);
-
-        _socket.open(udp::v4());
-        boost::array<char,1> send_buf = {{0}};
-	std::cout << "degub#6" << "inside udpClient " <<  std::endl;
-        _socket.send_to(buffer(message.c_str(),strlen(message.c_str())),receiver);
-
-        boost::array<char,128> recv_buf;
-        udp::endpoint sender;
-        size_t len = _socket.receive_from(buffer(recv_buf),sender);
-	std::cout << "degub#6" << "inside udpClient after recv " <<  std::endl;
-	_socket.close();
-
-	//	std::cout << std::string(recv_buf.data()).substr(0,len) << std::endl;
-        return (std::string(recv_buf.data()).substr(0,len));
-    }
-
-    void sendData(std::string message){
-        udp::resolver::query query(udp::v4(),_addr,std::to_string(_port));
-        udp::endpoint receiver = *_resolver.resolve(query);
-
-	_socket.open(udp::v4());
-	
-	_socket.send_to(buffer(message.c_str(),strlen(message.c_str())),receiver);
-
-	_socket.close();
-    }
-
-    std::string getData(){
-        udp::resolver::query query(udp::v4(),_addr,std::to_string(_port));
-        udp::endpoint receiver = *_resolver.resolve(query);
-
-	_socket.open(udp::v4());
-	
-	boost::array<char,128> recv_buf;
-        udp::endpoint sender;
-        size_t len = _socket.receive_from(buffer(recv_buf),sender);
-	std::cout << "degub#6" << "inside udpClient after recv " <<  std::endl;
-
-	_socket.close();
-
-
-    }
-
-private:
-    boost::asio::io_service& _io;
-    udp::socket _socket;
-    udp::resolver _resolver;
-    std::string _addr;
-    int _port;
-};
-
 
 class minicom_client
 {
 public:
-    minicom_client(boost::asio::io_service& io_service, unsigned int baud, const string& device, Arduino& arduinoIn)
+    minicom_client(boost::asio::io_service& io_service, unsigned int baud, const string& device, nodeState& state)
         : active_(true),
           io_service_(io_service),
           serialPort(io_service, device),
-          arduino(arduinoIn)
+          state_(state)
     {
         if (!serialPort.is_open())
         {
@@ -116,7 +43,6 @@ public:
         }
         boost::asio::serial_port_base::baud_rate baud_option(baud);
         serialPort.set_option(baud_option); // set the baud rate after the port has been opened
-        //read_start();
     }
 
     void read(){
@@ -151,7 +77,6 @@ public:
                 return active_;
         }
 
-    void ard_print(void){arduino.print();}
 
 private:
 
@@ -172,7 +97,7 @@ private:
                 { // read completed, so process the data
                     //cout.write(read_msg_, bytes_transferred); // echo to standard output
                      if (bytes_transferred == 12){
-                         arduino.set_parameters(std::string(&read_msg_[0],&read_msg_[11]));
+                         state_.micro_.set_parameters(std::string(&read_msg_[0],&read_msg_[11]));
                      }
                      read_start(); // start waiting for another asynchronous read again
                 }
@@ -239,66 +164,14 @@ private:
     char read_msg_[max_read_length]; // data read from the socket
     char cmd[2];
     deque<char> write_msgs_; // buffered write data
-    Arduino& arduino;
+    nodeState& state_;
 };
-
-class udpServer{
-public:
-  udpServer(boost::asio::io_service& io, Arduino& arduino, minicom_client *micro,int port)
-        : io_service_(io),
-          _microArd(arduino),
-          socket_(io,udp::endpoint(udp::v4(),port)),
-					microSerial(micro)
-
-    {
-
-    }
-
-    void respond(){
-
-        boost::array<char,20> recv;
-        udp::endpoint client;
-        boost::system::error_code err;
-
-        socket_.receive_from(buffer(recv),client,0,err);
-	std::cout << "I got " << recv.data() << std::endl;
-
-	std::cout <<"received from " << recv.data() << std::endl;
-	char send[2];
-        send[0]=recv[0];
-        send[1]=recv[1];
-	microSerial->write(send);
-
-        if(err && err != error::message_size){
-            std::cout << "Error" << std::endl;
-        }
-        boost::system::error_code ignored;
-        socket_.send_to(buffer(_microArd.getString()),client,0,ignored);
-    }
-
-private:
-    boost::asio::io_service& io_service_;
-    udp::socket socket_;
-    Arduino& _microArd;
-		minicom_client *microSerial;
-
-};
-
 
 
 void taskRead(minicom_client *c){
     c->read();
-    c->ioservice_run();
 }
 
-
-
-void taskUDP(udpServer *udp){
-    for(;;){
-        udp->respond();
-        //minicom_client *microSerial;
-    }
-}
 
 /*
 
@@ -321,155 +194,151 @@ void taskWrite(minicom_client *c){
 }
 
 int occupancy[8];
-boost::array<Arduino,2> neighborMicros;
 std::vector<udpClient*> neighborClients;
 
-void taskNeighbor(int neighborNumber){
-	
-for(;;)
-	{
-		usleep(10000);	
-		std::string response ="";
-		    
-		std::cout << "================= NEIGHBOR #" << neighborNumber << " =================" << std::endl;
-	   	response = neighborClients[neighborNumber]->queryServer("");
-		std::cout << "got:" << response << std::endl;
-		neighborMicros[neighborNumber].set_parameters(response);
 
-		neighborMicros[neighborNumber].print();
-	}
-
-}
-
-void taskNeighborSend(int neighborNumber){
-
-    for(;;){
-        usleep(1000000);
-
-std::cout << "degub#6" << "inside thread " << neighborNumber <<  std::endl;
-        neighborClients[neighborNumber]->sendData(neighborMicros[neighborNumber].getString());
-
-	std::cout << "================================" << std::endl;
+void taskEchoState(udpClient *client,nodeState *state,int mode)
+{
+    if (mode == 0) return;      // mode=0 -> centralized control = no need for P2P communication
+    for(;;)
+    {
+        client->echo(state->micro_.getString());
+        client->echo(state->getOccString());
+        usleep(100000);
     }
-}
 
-void taskNeighborRecv(int neighborNumber){
-for(;;){
-        std::string response ="";
-            
-	std::cout << "================= NEIGHBOR #" << neighborNumber << " =================" << std::endl;
-   	response = neighborClients[neighborNumber]->getData();
-	std::cout << "got:" << response << std::endl;
-	neighborMicros[neighborNumber].set_parameters(response);
-
-	std::cout << "\n\nGot info from neighbor " << neighborNumber << response << std::endl;
-	neighborMicros[neighborNumber].print();
-}
 }
 
 int main(int argc, char* argv[])
 {
-  // on Unix POSIX based systems, turn off line buffering of input, so cin.get() returns after every keypress
-  // On other systems, you'll need to look for an equivalent
+    // on Unix POSIX based systems, turn off line buffering of input, so cin.get() returns after every keypress
+    // On other systems, you'll need to look for an equivalent
 #ifdef POSIX
-  termios stored_settings;
-  tcgetattr(0, &stored_settings);
-  termios new_settings = stored_settings;
-  new_settings.c_lflag &= (~ICANON);
-  new_settings.c_lflag &= (~ISIG); // don't automatically handle control-C
-  tcsetattr(0, TCSANOW, &new_settings);
+    termios stored_settings;
+    tcgetattr(0, &stored_settings);
+    termios new_settings = stored_settings;
+    new_settings.c_lflag &= (~ICANON);
+    new_settings.c_lflag &= (~ISIG); // don't automatically handle control-C
+    tcsetattr(0, TCSANOW, &new_settings);
 #endif
-int port, port_first, port_second;
- std::string neighborAddFirst, neighborAddSecond, Add1, Add2, port1,port2,token = ":";
 
-  try
+    try
     {
-      if (argc < 4 || argc > 6 || argc == 5)
-	{
-	  cerr << "Usage: minicom <baud> <device> <port>\n" << endl;
-	  cerr << "Usage: minicom <baud> <device> <port> <first neighbor port> <second neighbor port>\n";
-	  return 1;
-	}
-      else if (argc == 4){
-	port = atoi(argv[3]);
-      }
-      else if (argc == 6){
-          neighborAddFirst = std::string(argv[4]);
-          port1 = neighborAddFirst.substr(neighborAddFirst.find(token)+1,5);
-          Add1 = neighborAddFirst.substr(0,neighborAddFirst.find(token));
-          port_first = atoi(port1.c_str());
+        int myPort,neighbour1Port,neighbour2Port;
+        std::string neighbour1Add,neighbour2Add;
+        std::string neighborAddFirst, neighborAddSecond, token = ":";
+        int mode;
 
-          neighborAddSecond = std::string(argv[5]);
-          port2 = neighborAddSecond.substr(neighborAddSecond.find(token)+1,5);
-          Add2 = neighborAddSecond.substr(0,neighborAddSecond.find(token));
-          port_second = atoi(port2.c_str());
+        if (argc < 4 || argc > 6 || argc == 5)
+        {
+            cerr << "Usage: minicom <baud> <device> <port>\n" << endl;
+            cerr << "Usage: minicom <baud> <device> <port> <first neighbor adress:port> <second neighbor address:port>\n";
+            return 1;
+        }
+        // if there are 6 arguments then we're in distributed mode
+        else if (argc == 6){
+            mode = 1;           // mode=1 means distributed
 
-          std::cout << "port 1 " << port_first << "\t port2 " << port_second << std::endl;
+            // get neighbour1's address and port
+            neighbour1Add = std::string(argv[4]);
+            neighbour1Port = atoi(neighbour1Add.substr(neighbour1Add.find(token)+1,5).c_str());
+            neighbour1Add = neighbour1Add.substr(0,neighbour1Add.find(token));
 
-          std::cout << "add 1" << Add1 << "\t add2 " << Add2 << std::endl;
+            // get neighbour1's address and port
+            neighbour2Add = std::string(argv[5]);
+            neighbour2Port = atoi(neighbour2Add.substr(neighbour2Add.find(token)+1,5).c_str());
+            neighbour2Add = neighbour2Add.substr(0,neighbour2Add.find(token));
 
-      }
+            std::cout << "Neighbour 1\nPort:\t" << neighbour1Port << "\tAddress:\t" << neighbour1Add << std::endl;
+            std::cout << "Neighbour 2\nPort:\t" << neighbour2Port << "\tAddress:\t" << neighbour2Add << std::endl;
 
+        }
+        // if there are 4 arguments then we're in centralized mode
+        else if (argc == 4){
+            mode = 0;
+        }
 
-      boost::asio::io_service io_service;
-      Arduino arduino;
-      // define an instance of the main class of this program
-      minicom_client c(io_service, boost::lexical_cast<unsigned int>(argv[1]), argv[2], arduino);
-      // run the IO service as a separate thread, so the main thread can block on standard input
-      //                thread t(&boost::asio::io_service::run, &io_service);
+        // get my port from argument 3
+        myPort = atoi(argv[3]);
+        cout << "My port is " << myPort << endl;
 
+        boost::asio::io_service io_service;
 
-      thread t(taskRead,&c);    // thread to read from arduino
-      thread t2(taskWrite,&c);  // thread to receive from keyboard and write to arduino
+        nodeState state(myPort,neighbour1Add,neighbour2Add);
 
-      udpServer x(io_service,arduino,&c,port); // udpServer to handle udp requests
-      thread tUDP(taskUDP,&x);                 // thread to run the udp server
+        // define an instance of the main class of this program
+        minicom_client c(io_service, boost::lexical_cast<unsigned int>(argv[1]), argv[2], state);
 
-      // if running on distributed mode
-      if (argc == 6){
-	std::cout << "tenho 6 pars e vou criar clients e threads" << std::endl;
-          neighborClients.push_back(new udpClient(io_service,Add1,port_first));
-          neighborClients.push_back(new udpClient(io_service,Add2,port_second));
-     std::cout << "degub#2" << std::endl;
-   
-     }
+        // run the IO service as a separate thread, so the main thread can block on standard input
+        //                thread t(&boost::asio::io_service::run, &io_service);
 
 
-
-std::cout << "degub#3" << std::endl;
-	  thread neighborFirst(taskNeighbor,0);
-	  thread neighborSecond(taskNeighbor,1);
-          //thread neighborFirstSend(taskNeighborSend,0);
-          //thread neighborFirstRecv(taskNeighborRecv,0);
-          //thread neighborSecondSend(taskNeighborSend,1);
-	  //thread neighborSecondRecv(taskNeighborRecv,1);
-
-std::cout << "degub#5" << std::endl;
-      while(true){ //slow print loop
-	std::cout << "================= MY ARDUINO =================" << std::endl;
-	arduino.print();
-	//     //cout << arduino.getString() << endl;
-	//     x.write(arduino.getString());
+        thread tRead(taskRead,&c);    // thread to read from arduino
+        thread tKeyboard(taskWrite,&c);  // thread to receive from keyboard and write to arduino
 
 
 
+        udp_server server(io_service, myPort,state);
 
-	usleep(1000000);
-      }
+        std::thread tIO(boost::bind(&boost::asio::io_service::run, &io_service)); // thread for running the io service
 
-      t.join(); // wait for the IO service thread to close
-      t2.join();
-      tUDP.join();
-      neighborFirst.join(); neighborSecond.join();
-      //neighborFirstSend.join();neighborFirstRecv.join();
-      //neighborSecondSend.join();neighborSecondRecv.join();
+        udpClient cNeighbour1(io_service,neighbour1Add,neighbour1Port);
+        udpClient cNeighbour2(io_service,neighbour2Add,neighbour2Port);
+
+        //mode=1
+
+        std::thread tNeighbour1(boost::bind(taskEchoState,&cNeighbour1,&state,mode));
+        std::thread tNeighbour2(boost::bind(taskEchoState,&cNeighbour2,&state,mode));
+
+
+        while(true){ //slow print loop
+            std::cout << "================= MY ARDUINO =================" << std::endl;
+
+            cout << "\n\n=============== MY ARDUINO VALUES ===================" << endl;
+            state.micro_.print();
+
+            if (mode==1)
+            {
+                cout << "\n\n=============== NEIGHBOUR #1 VALUES ===================" << endl;
+                state.micro1_.print();
+
+                cout << "\n\n=============== NEIGHBOUR #2 VALUES ===================" << endl;
+                state.micro2_.print();
+
+                cout << "\n\nCOUPLING" << endl;
+                for (int i=0;i<8;i++)
+                {
+                    for (int j=0;j<8;j++)
+                    {
+                        cout << state.coupling_[i][j] << ",";
+                    }
+                    cout << endl;
+                }
+
+                cout << "\n\nBACKGROUND" << endl;
+                for (int i=0;i<8;i++){cout << state.background_[i] << ",";}
+                cout << endl;
+            }
+
+            usleep(2000000);
+
+        }
+
+        tIO.join();
+
+        tRead.join(); // wait for the IO service thread to close
+        tKeyboard.join();
+
+        tNeighbour1.join();
+        tNeighbour2.join();
+
     }
-  catch (exception& e)
+    catch (exception& e)
     {
-      cerr << "Exception: " << e.what() << "\n";
+        cerr << "Exception: " << e.what() << "\n";
     }
 #ifdef POSIX // restore default buffering of standard input
-  tcsetattr(0, TCSANOW, &stored_settings);
+    tcsetattr(0, TCSANOW, &stored_settings);
 #endif
-  return 0;
+    return 0;
 }

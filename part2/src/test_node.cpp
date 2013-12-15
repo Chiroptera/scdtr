@@ -33,8 +33,9 @@ using namespace boost::asio;
 using namespace std;
 
 
-void taskEchoState(udpClient *client,nodeState *state)
+void taskEchoState(udpClient *client,nodeState *state,int mode)
 {
+if (mode == 1) return;
 for(;;)
     {
         client->echo(state->micro_.getString());
@@ -49,7 +50,7 @@ int main(int argc,char** argv){
 
 int myPort,neighbour1Port,neighbour2Port;
     std::string neighbour1Add,neighbour2Add;
-    std::string neighborAddFirst, neighborAddSecond, Add1, Add2, port1,port2,token = ":";
+    std::string neighborAddFirst, neighborAddSecond, token = ":";
 
     if (argc!=4)
     {
@@ -76,7 +77,8 @@ int myPort,neighbour1Port,neighbour2Port;
 
     }
 
-    boost::array<Arduino,3> micros;
+    int mode = 0;
+
 
     boost::asio::io_service io_service;
 
@@ -89,28 +91,42 @@ int myPort,neighbour1Port,neighbour2Port;
 udpClient cNeighbour1(io_service,neighbour1Add,neighbour1Port);
 udpClient cNeighbour2(io_service,neighbour2Add,neighbour2Port);
 
-std::thread tNeighbour1(boost::bind(taskEchoState,&cNeighbour1,&state));
-std::thread tNeighbour2(boost::bind(taskEchoState,&cNeighbour2,&state));
+    mode=1;
+    std::thread tNeighbour1(boost::bind(taskEchoState,&cNeighbour1,&state,mode));
+        std::thread tNeighbour2(boost::bind(taskEchoState,&cNeighbour2,&state,mode));
 
 
     for(int i=0;;i++)
         {
             i = (i==10) ? 0 : i;
-            // micros[0].set_parameters(std::string(std::to_string(i) + std::to_string(i) + "11223344 " ));
             state.micro_.set_parameters(std::string(std::to_string(i) + std::to_string(i) + "11223344 " ));
             cout << "\n\nMY ARDUINO VALUES" << endl;
-                                               //micros[0].print();
             state.micro_.print();
             cout << "\n\nNEIGHBOUR #1 ARDUINO" << endl;
-            //micros[1].print();
             state.micro1_.print();
             cout << "\n\nNEIGHBOUR #2 ARDUINO" << endl;
-            //micros[2].print();
             state.micro2_.print();
-            usleep(1000000);
+
+                cout << "\n\nCOUPLING" << endl;
+                    for (int i=0;i<8;i++)
+                        {
+                        for (int j=0;j<8;j++)
+                                 {
+                                 cout << state.coupling_[i][j] << ",";
+                                 }
+                                 cout << endl;
+                        }
+
+                        cout << "\n\nBACKGROUND" << endl;
+                            for (int i=0;i<8;i++){cout << state.background_[i] << ",";}
+            cout << endl;
+            usleep(2000000);
 
             }
+
             t.join();
-            tNeighbour1.join();
-            tNeighbour2.join();
+                tNeighbour1.join();
+                    tNeighbour2.join();
+
+
             }
