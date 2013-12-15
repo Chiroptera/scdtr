@@ -1,6 +1,5 @@
 #include <iostream>
 #include <boost/asio.hpp>
-#include <boost/array.hpp>
 
 using namespace boost::asio;
 using ip::udp;
@@ -8,7 +7,7 @@ using ip::udp;
 int main(){
     io_service io;
     udp::resolver resolver(io);
-    udp::resolver::query query(udp::v4(),"192.168.56.101","17231");
+    udp::resolver::query query(udp::v4(),"127.0.0.1","10000");
     udp::endpoint receiver = *resolver.resolve(query);
     udp::socket socket(io);
 

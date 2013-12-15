@@ -43,7 +43,7 @@ int main(){
 	boost::system::error_code err;
 	tcp_client client(io,17000,"127.0.0.1");
 	for(;;){
-		client.send("22");
+		tcp_client.send("22");
 usleep(100000);
 	}
 

@@ -10,7 +10,6 @@ class Arduino{
   int TT = 0; 	// decimal code of the temperature, in degrees centigrade
   int CC = 0; 	// hexadecimal code of the fan control duty cycle 00->0%  FF->100%
   int DD = 0;	// hexadecimal code of the high power LED duty cycle 00->0%  FF->100%
-	std::string sendReady;
 
  public:  void set_parameters(std::string parameters);
   void print();

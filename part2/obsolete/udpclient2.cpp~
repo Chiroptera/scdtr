@@ -1,17 +1,10 @@
 #include <iostream>
 #include <boost/asio.hpp>
 #include <string>
-#include <boost/array.hpp>
-#include <thread>
 
 using namespace boost::asio;
 using ip::udp;
 using namespace std;
-
-
-#define Lmin 	300	// Lum for empty desk
-#define Lmax 	600	// Lum for desk occupied
-
 
 class udpClient{
 public:
@@ -42,37 +35,40 @@ private:
     udp::resolver _resolver;
 };
 
-int main(int argc, char** argv<){
-  if (argc != 4){
-    cerr << "client myport neighbor1 neighbor2";
-    return -1;
-  }
-  // base porto 17000
-  int ports[3] = {atoi(argv[1]),atoi(argv[2]),atoi(argv[3])};
-  int myPos = ports[0]-17000;
-  int posL = (myPos == 0) ? 7 : myPos - 1;
-  int posR = (myPos == 7) ? 0 : myPos + 1;
-  
-
-  io_service io;
-  udpClient x(io);
-  std::string ip="127.0.0.1";
-  
-  int presence=1;
-  int E[8]={1000,100,100,100,100,100,100,100};
-  int b=100;
-  
-  int desiredLux = (presence = 1) ? Lmin : Lmax;
-  int led=0;
-    int neighL,neighR;
-  for(;;){
-    neighL=atoi(x.queryServer(ip,ports[1]));
-    neighR=atoi(x.queryServer(ip,ports[2]));
-
-    led = desiredLux - neighL*E[posL] - neighR*E[posR];
-    led = led / E[myPos];
-
+int main(){
+    io_service io;
+    udpClient x(io);
+    std::string ip="127.0.0.1";
+    int port = 10001;
+    std::string resposta = "";
+    resposta = x.queryServer(ip,port);
     std::cout << resposta << std::endl;
-  }
-
 }
+
+// int main(){
+//     boost::asio::io_service io;
+//     udp::resolver resolver(io);
+//     udp::socket socket(io);
+
+//     std::string addr="127.0.0.1";
+
+//     int ports[2];
+//     ports[0]=10000;
+//     ports[1]=10001;
+//     int i = 1;
+//     udp::resolver::query query(udp::v4(),addr,std::to_string(ports[i]));
+//     udp::endpoint receiver = *resolver.resolve(query);
+
+//     socket.open(udp::v4());
+//     boost::array<char,1> send_buf = {{0}};
+
+//     socket.send_to(buffer(send_buf),receiver);
+//     boost::array<char,128> recv_buf;
+//     udp::endpoint sender;
+//     size_t len = socket.receive_from(buffer(recv_buf),sender);
+//     std::cout.write(recv_buf.data(),len);
+
+//     socket.close();
+
+//     return 0;
+// }

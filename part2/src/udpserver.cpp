@@ -1,69 +1,104 @@
-#include<iostream>
+/**********************************
+Copyright ACSDC/DEEC TECNICO LISBOA
+alex@isr.ist.utl.pt
+All rights reserved
+***********************************/
+#include <ctime>
+#include <iostream>
+#include <string>
+#include <sstream>
+#include <boost/array.hpp>
+#include <boost/bind.hpp>
+#include <boost/shared_ptr.hpp>
+#include <boost/enable_shared_from_this.hpp>
 #include <boost/asio.hpp>
 
-using namespace boost::asio;
-using ip::udp;
-using namespace std;
+#include "threadhello.h"
+#include "udpserver.h"
 
-void err(char *s)
+using boost::asio::ip::udp;
+
+udp_server::udp_server(boost::asio::io_service& io_service, int port_number, Arduino *myMicro,
+                       Arduino *neighbour1Micro, std::string neighbour1Add,
+                       Arduino *neighbour2Micro, std::string neighbour2Add)
+
+    : socket_(io_service, udp::endpoint(udp::v4(), port_number)), micro_(myMicro),
+      micro1_(neighbour1Micro), add1(neighbour1Add),
+      micro2_(neighbour2Micro), add2(neighbour2Add)
 {
-   perror(s);
-   exit(1);
+   start_receive();
 }
 
-int main (int argc,char *argv[])
+void udp_server::start_receive()
 {
-char mensagem[20];
-
-int server_sock=socket(AF_INET,SOCK_DGRAM,0);
-
-struct sockaddr_in server_addr;
-struct sockaddr_in client_addr;
-server_addr.sin_family=AF_INET;
-server_addr.sin_port=htons(2013);
-server_addr.sin_addr.s_addr=inet_addr("127.0.0.1");
-//memset(&client_addr, 0, sizeof(client_addr));
-int ret=bind(server_sock,(struct sockaddr *)&server_addr,sizeof(struct sockaddr));
-if(ret == -1) cout<<"BIND ERROR!\n"; else cout<<"Bind successful\n";
-
-char buffer[20]={'\0'};
-strcpy(mensagem,"Daniel!");
-int count=0;
-
-
-/************ com este codigo o servidor vai ler uma msg. */
-for(;;){
-	count=recvfrom(server_sock,&buffer,20,0,(struct sockaddr*)&client_addr,(socklen_t *)&client_addr);
-
-	if(count==-1)cout<<"RECV ERROR\n"<<endl;
-	else {
-	    cout<<"Success. client says: "<<buffer<<endl;
-	}
-//sleep(1);
+    socket_.async_receive_from(
+                               boost::asio::buffer(recv_buffer_),
+                               remote_endpoint_,
+                               // boost::bind(&udp_server::handle_receive, this,
+                               //             boost::asio::placeholders::error));
+                               boost::bind(&udp_server::handle_receive, this,
+                                           boost::asio::placeholders::error,
+                                           boost::asio::placeholders::bytes_transferred));
+                               // udp_server::handle_receive);
 }
 
-/*****************************************************************************/
+//
+// EXAMPLE OF HANDLER FOR ASYNC_RECEICE_FROM IN DOCUMENTATION
+//
+// void handler(
+//              const boost::system::error_code& error, // Result of operation.
+//              std::size_t bytes_transferred           // Number of bytes received.
+//              );
 
-
-
-
-/******* Com este codigo o cliente le uma string do teclado e depois escreve no servidor. Não esta a funcionar.
-sleep(5);
-
-for(;;)
+void udp_server::handle_receive(const boost::system::error_code& error, std::size_t bytes_transferred)
+// void udp_server::handle_receive(const boost::system::error_code& error)
 {
-strcpy(buffer,mensagem);
-count=sendto(server_sock,&buffer,20,0,(struct sockaddr*)&server_addr,sizeof(server_addr));
+   if (!error || error == boost::asio::error::message_size)
+   {
+       // get string with the message
+       // std::string data = std::string(recv_buffer_.begin(),recv_buffer_.end());
+       std::string data = std::string(recv_buffer_.begin(),bytes_transferred);
 
-if(count == -1) cout<<"Send ERROR\n"<<endl;
-else cout<<"Send successful"<<endl;
+       // get sender address
+       std::string senderAdd = remote_endpoint_.address().to_string();
+       // std::cout << "DATA RECEIVED FROM " << senderAdd << std::endl;
+       // std::cout << "BYTES RECEIVED: " << bytes_transferred << "DATA: " << data << std::endl;
 
-cin >> mensagem;
-sleep(1);
+       // if the sender was neighbour 1 the message is a status message
+       if (senderAdd == add1){
+           micro1_->set_parameters(data);
+       }
+
+       // if the sender was neighbour 2 the message is a status message
+       else if (senderAdd == add2){
+           micro2_->set_parameters(data);
+       }
+
+       // else echo my status back to sender and update status
+       else {
+           boost::shared_ptr<std::string> message( new std::string(micro_->getString()) );
+           socket_.async_send_to(boost::asio::buffer(*message), remote_endpoint_,
+                                 boost::bind(&udp_server::handle_send, this, message, boost::asio::placeholders::error));
+
+           //modify the state of the environment according to the received information
+           std::string data = std::string(recv_buffer_.begin(),recv_buffer_.end());
+           std::istringstream is(data);
+           int val;
+           is >> std::hex >> val;
+           // std::cout << "Data received converted  is " << val << std::endl;
+           if(!is.fail())
+               std::cout << "WRITING TO ARDUINO " << val << std::endl;
+       }
+
+      /*
+        code for parsing matrix
+
+       */
+
+      start_receive();
+   }
 }
 
-***********************************************************************************/
-
-close(server_sock);
-return 0;
+void udp_server::handle_send(boost::shared_ptr<std::string> msg, const boost::system::error_code& error)
+{
 }
