@@ -34,19 +34,35 @@ void udp_server::start_receive()
     socket_.async_receive_from(
                                boost::asio::buffer(recv_buffer_),
                                remote_endpoint_,
+                               // boost::bind(&udp_server::handle_receive, this,
+                               //             boost::asio::placeholders::error));
                                boost::bind(&udp_server::handle_receive, this,
-                                           boost::asio::placeholders::error));
+                                           boost::asio::placeholders::error,
+                                           boost::asio::placeholders::bytes_transferred));
+                               // udp_server::handle_receive);
 }
 
-void udp_server::handle_receive(const boost::system::error_code& error)
+//
+// EXAMPLE OF HANDLER FOR ASYNC_RECEICE_FROM IN DOCUMENTATION
+//
+// void handler(
+//              const boost::system::error_code& error, // Result of operation.
+//              std::size_t bytes_transferred           // Number of bytes received.
+//              );
+
+void udp_server::handle_receive(const boost::system::error_code& error, std::size_t bytes_transferred)
+// void udp_server::handle_receive(const boost::system::error_code& error)
 {
    if (!error || error == boost::asio::error::message_size)
    {
        // get string with the message
-       std::string data = std::string(recv_buffer_.begin(),recv_buffer_.end());
+       // std::string data = std::string(recv_buffer_.begin(),recv_buffer_.end());
+       std::string data = std::string(recv_buffer_.begin(),bytes_transferred);
 
        // get sender address
-       std::string senderAdd = remove_endpoint_.address().to_string();
+       std::string senderAdd = remote_endpoint_.address().to_string();
+       // std::cout << "DATA RECEIVED FROM " << senderAdd << std::endl;
+       // std::cout << "BYTES RECEIVED: " << bytes_transferred << "DATA: " << data << std::endl;
 
        // if the sender was neighbour 1 the message is a status message
        if (senderAdd == add1){
@@ -54,7 +70,7 @@ void udp_server::handle_receive(const boost::system::error_code& error)
        }
 
        // if the sender was neighbour 2 the message is a status message
-       else if (speakerAdd == add2){
+       else if (senderAdd == add2){
            micro2_->set_parameters(data);
        }
 
@@ -69,7 +85,7 @@ void udp_server::handle_receive(const boost::system::error_code& error)
            std::istringstream is(data);
            int val;
            is >> std::hex >> val;
-           std::cout << "the value received was " << data << "which is " << val << std::endl;
+           // std::cout << "Data received converted  is " << val << std::endl;
            if(!is.fail())
                std::cout << "WRITING TO ARDUINO " << val << std::endl;
        }
