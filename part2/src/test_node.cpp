@@ -17,9 +17,11 @@
 #include <sstream>
 #include <iostream>
 
-
+#include "nodeState.h"
 #include "threadhello.h"
 #include "udpserver.h"
+#include "udpClientClass.h"
+
 
 #ifdef POSIX
 #include <termios.h>
@@ -27,46 +29,17 @@
 
 
 using namespace boost::asio;
-using ip::udp;
+
 using namespace std;
 
-class udpClient{
-public:
-    udpClient(boost::asio::io_service& io, std::string addr, int port)
-        : _io(io),
-          _resolver(io),
-          _socket(io),
-	  _addr(addr),
-	  _port(port)
-    {}
 
-    void echo(std::string msg){
-        udp::resolver::query query(udp::v4(),_addr,std::to_string(_port));
-        udp::endpoint receiver = *_resolver.resolve(query);
-
-        _socket.open(udp::v4());
-
-boost::shared_ptr<std::string> message(new std::string(msg));
-_socket.send_to(boost::asio::buffer(*message), receiver);
-
-	_socket.close();
-    }
-
-private:
-    boost::asio::io_service& _io;
-    udp::resolver _resolver;
-    udp::socket _socket;
-    std::string _addr;
-    int _port;
-};
-
- void taskEchoState(udpClient *client,Arduino *micro)
- {
-     for(;;)
+void taskEchoState(udpClient *client,nodeState *state)
+{
+for(;;)
          {
-             client->echo(micro->getString());
-             usleep(100000);
-             }
+client->echo(state->micro_.getString());
+usleep(100000);
+}
 
              }
 
@@ -76,7 +49,6 @@ int main(int argc,char** argv){
 int myPort,neighbour1Port,neighbour2Port;
     std::string neighbour1Add,neighbour2Add;
     std::string neighborAddFirst, neighborAddSecond, Add1, Add2, port1,port2,token = ":";
-
 
     if (argc!=4)
     {
@@ -106,27 +78,34 @@ int myPort,neighbour1Port,neighbour2Port;
     boost::array<Arduino,3> micros;
 
     boost::asio::io_service io_service;
-    udp_server server(io_service, myPort,&micros[0],&micros[1],neighbour1Add,&micros[2],neighbour2Add);
+
+        nodeState state(myPort,neighbour1Add,neighbour2Add);
+
+        udp_server server(io_service, myPort,state);
 
     std::thread t(boost::bind(&boost::asio::io_service::run, &io_service)); // thread for running the io service
 
 udpClient cNeighbour1(io_service,neighbour1Add,neighbour1Port);
 udpClient cNeighbour2(io_service,neighbour2Add,neighbour2Port);
 
-std::thread tNeighbour1(boost::bind(taskEchoState,&cNeighbour1,&micros[0]));
-std::thread tNeighbour2(boost::bind(taskEchoState,&cNeighbour2,&micros[0]));
+std::thread tNeighbour1(boost::bind(taskEchoState,&cNeighbour1,&state));
+std::thread tNeighbour2(boost::bind(taskEchoState,&cNeighbour2,&state));
 
 
     for(int i=0;;i++)
         {
             i = (i==10) ? 0 : i;
-            micros[0].set_parameters(std::string(std::to_string(i) + std::to_string(i) + "11223344 " ));
+            // micros[0].set_parameters(std::string(std::to_string(i) + std::to_string(i) + "11223344 " ));
+            state.micro_.set_parameters(std::string(std::to_string(i) + std::to_string(i) + "11223344 " ));
             cout << "\n\nMY ARDUINO VALUES" << endl;
-            micros[0].print();
+                                               //micros[0].print();
+            state.micro_.print();
             cout << "\n\nNEIGHBOUR #1 ARDUINO" << endl;
-            micros[1].print();
+            //micros[1].print();
+            state.micro1_.print();
             cout << "\n\nNEIGHBOUR #2 ARDUINO" << endl;
-            micros[2].print();
+            //micros[2].print();
+            state.micro2_.print();
             usleep(1000000);
 
             }

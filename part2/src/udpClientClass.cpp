@@ -14,31 +14,22 @@ using ip::udp;
 using namespace std;
 
 
-class udpClient{
-public:
-    udpClient(boost::asio::io_service& io)
-        : _io(io),
-          _resolver(io),
-          _socket(io)
-    {}
+udpClient::udpClient(boost::asio::io_service& io, std::string addr, int port)
+    : _io(io),
+      _resolver(io),
+      _socket(io),
+      _addr(addr),
+      _port(port)
+{}
 
-    std::string queryServer(std::string addr, int port){
-        udp::resolver::query query(udp::v4(),addr,std::to_string(port));
-        udp::endpoint receiver = *_resolver.resolve(query);
+void udpClient::echo(std::string msg){
+    udp::resolver::query query(udp::v4(),_addr,std::to_string(_port));
+    udp::endpoint receiver = *_resolver.resolve(query);
 
-        _socket.open(udp::v4());
-        boost::array<char,1> send_buf = {{0}};
+    _socket.open(udp::v4());
 
-        _socket.send_to(buffer(send_buf),receiver);
-        boost::array<char,128> recv_buf;
-        udp::endpoint sender;
-        size_t len = _socket.receive_from(buffer(recv_buf),sender);
-        //std::cout.write(recv_buf.data(),len);
-        return (std::string(recv_buf.data()));
-    }
+    boost::shared_ptr<std::string> message(new std::string(msg));
+    _socket.send_to(boost::asio::buffer(*message), receiver);
 
-private:
-    boost::asio::io_service& _io;
-    udp::socket _socket;
-    udp::resolver _resolver;
-};
+    _socket.close();
+}

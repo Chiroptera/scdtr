@@ -11,11 +11,13 @@
 
 class udpClient{
 public:
-    udpClient(boost::asio::io_service& io);
-    std::string queryServer(std::string addr, int port);
+    udpClient(boost::asio::io_service& io, std::string addr, int port);
+    void echo(std::string msg);
 
-private:
+ private:
     boost::asio::io_service& _io;
-    boost::asio::ip::udp::socket _socket;
     boost::asio::ip::udp::resolver _resolver;
+    boost::asio::ip::udp::socket _socket;
+    std::string _addr;
+    int _port;
 };

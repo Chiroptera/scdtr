@@ -15,16 +15,17 @@ All rights reserved
 
 #include "threadhello.h"
 #include "udpserver.h"
+#include "nodeState.h"
 
 using boost::asio::ip::udp;
 
-udp_server::udp_server(boost::asio::io_service& io_service, int port_number, Arduino *myMicro,
-                       Arduino *neighbour1Micro, std::string neighbour1Add,
-                       Arduino *neighbour2Micro, std::string neighbour2Add)
+udp_server::udp_server(boost::asio::io_service& io_service, int port_number,
+                       nodeState& state)
 
-    : socket_(io_service, udp::endpoint(udp::v4(), port_number)), micro_(myMicro),
-      micro1_(neighbour1Micro), add1(neighbour1Add),
-      micro2_(neighbour2Micro), add2(neighbour2Add)
+
+    : socket_(io_service, udp::endpoint(udp::v4(), port_number)),
+      state_(state)
+
 {
    start_receive();
 }
@@ -42,21 +43,13 @@ void udp_server::start_receive()
                                // udp_server::handle_receive);
 }
 
-//
-// EXAMPLE OF HANDLER FOR ASYNC_RECEICE_FROM IN DOCUMENTATION
-//
-// void handler(
-//              const boost::system::error_code& error, // Result of operation.
-//              std::size_t bytes_transferred           // Number of bytes received.
-//              );
 
 void udp_server::handle_receive(const boost::system::error_code& error, std::size_t bytes_transferred)
-// void udp_server::handle_receive(const boost::system::error_code& error)
+
 {
    if (!error || error == boost::asio::error::message_size)
    {
        // get string with the message
-       // std::string data = std::string(recv_buffer_.begin(),recv_buffer_.end());
        std::string data = std::string(recv_buffer_.begin(),bytes_transferred);
 
        // get sender address
@@ -65,18 +58,18 @@ void udp_server::handle_receive(const boost::system::error_code& error, std::siz
        // std::cout << "BYTES RECEIVED: " << bytes_transferred << "DATA: " << data << std::endl;
 
        // if the sender was neighbour 1 the message is a status message
-       if (senderAdd == add1){
-           micro1_->set_parameters(data);
+       if (senderAdd == state_.add1){
+           state_.micro1_.set_parameters(data);
        }
 
        // if the sender was neighbour 2 the message is a status message
-       else if (senderAdd == add2){
-           micro2_->set_parameters(data);
+       else if (senderAdd == state_.add2){
+           state_.micro2_.set_parameters(data);
        }
 
        // else echo my status back to sender and update status
        else {
-           boost::shared_ptr<std::string> message( new std::string(micro_->getString()) );
+           boost::shared_ptr<std::string> message( new std::string(state_.micro_.getString()));
            socket_.async_send_to(boost::asio::buffer(*message), remote_endpoint_,
                                  boost::bind(&udp_server::handle_send, this, message, boost::asio::placeholders::error));
 
