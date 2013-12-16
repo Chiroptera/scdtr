@@ -377,18 +377,26 @@ COMMUNICATION
 
 
 void updateStates(){
+
   int i=0;
+
   while(i<NumberOfClients){
+
     std::string response = "";
 
     std::cout << "querying in client " << i << endl;
     response = clients[i]->queryServer("Z");
-		std::cout << "got response " << response << std::endl;
-                micros[i].set_parameters(std::string(response+" ").substr(0,11));
+    std::cout << "got response " << response << std::endl;
+    micros[i].set_parameters(std::string(response+" ").substr(0,11));
+
     //  micros[i].print();
     //occupancy[i]=micros[i].getPresence();
+
+
     i++;
+    //if (i>0) break;
   }
+
   return;
 }
 
@@ -396,72 +404,77 @@ void updateStates(){
 
 void getBackgroundAndCoupling(double coupling[][NumberOfClients],double background[NumberOfClients]){
 
-  // initialize all workstations with LED at 0% PWM
-  for (int i=0;i<NumberOfClients;i++){
-			//tcpClients[i]->send("00");
-      clients[i]->queryServer("00");
-  }
-  usleep(1000000);
+    // initialize all workstations with LED at 0% PWM
+    std::cout << "\n\n Sending 00 to all clients... \n\n" << std::endl;
+    for (int i=0;i<NumberOfClients;i++){
+        //if (i>0) break;
+        clients[i]->queryServer("00");
+    }
+    usleep(1000000);
 
-  // update for background data
-  updateStates();
-
-  double aux,resistance,lux;
-  // get background data
-  std::cout << "\n\n\n\n doing background \n\n\n";
-  for (int i=0;i<NumberOfClients;i++){
-    aux = 198 - micros[i].getLDR();
-    aux = aux / 33;
-    resistance=pow(10.00,aux);
-    lux = (Rlux*(1+ep) / resistance) - ep ;
-
-    background[i] = lux;
-  }
-
-
-  // coupling matrix
-  std::cout << "\n\n\n\n doing coupling \n\n\n";
-  for (int i=0;i<NumberOfClients;i++){
-
-    // change LED i to 01
-    //tcpClients[i]->send("FF");
-		clients[i]->queryServer("FF");
-                usleep(1000000);
-
-    // update all info
+    // update for background data
+    std::cout << "\n\n Updating all clients... \n\n" << std::endl;
     updateStates();
 
-    // update coupling matrix
-    for (int j=0;j<NumberOfClients; j++){
+    double aux,resistance,lux;
 
-      aux = 198 - micros[j].getLDR();
-      aux = aux / 33;
-      resistance=pow(10.00,aux);
-      lux = (Rlux*(1+ep) / resistance) - ep ;
+    // get background data
+    std::cout << "\n\n Doing background... \n\n" << std::endl;
+    for (int i=0;i<NumberOfClients;i++){
+        aux = 198 - micros[i].getLDR();
+        aux = aux / 33;
+        resistance=pow(10.00,aux);
+        lux = (Rlux*(1+ep) / resistance) - ep ;
 
-      std::cout << lux << ",";
-
-			aux =  lux - background[j];
-      coupling[j][i] = aux/100;
+        background[i] = lux;
     }
-    std::cout << std::endl;
 
-    // restore LED i to 00
-    clients[i]->queryServer("00");
-    usleep(1000000);
-    //tcpClients[i]->send("00");
-  }
+    // coupling matrix
+    std::cout << "\n\n Doing coupling... \n\n" << std::endl;
+    for (int i=0;i<NumberOfClients;i++){
+        std::cout << "\n\n Desk " << i+1 << ": turning on... \n" << std::endl;
+        // change LED i to 01
+        clients[i]->queryServer("FF");
+        usleep(1000000);
+
+        // update all info
+        updateStates();
+
+
+        std::cout << "\nLDR on all leds when LED " << i+1 <<" is on:" << std::endl;
+        // update coupling matrix
+        for (int j=0;j<NumberOfClients; j++){
+
+            aux = 198 - micros[j].getLDR();
+            aux = aux / 33;
+            resistance=pow(10.00,aux);
+            lux = (Rlux*(1+ep) / resistance) - ep ;
+
+            std::cout << lux << ",";
+
+            aux =  lux - background[j];
+            coupling[j][i] = aux/100;
+        }
+        std::cout << std::endl;
+
+
+        //if (i>0) break;
+        // restore LED i to 00
+        std::cout << "\n Desk " << i+1 << ": turning off... \n" << std::endl;
+        clients[i]->queryServer("00");
+        usleep(1000000);
+    }
 
 
 }
 
 void updateOccupancy(int occupancy[NumberOfClients]){
-	std::cout << "OCCUPANCY UPDATE"<< std::endl;
-	for (int i=0;i<NumberOfClients;i++){
-		occupancy[i]=micros[i].getPresence();
-		std::cout << occupancy[i] << ",";
-	}
-  std::cout << std::endl;
+    std::cout << "OCCUPANCY UPDATE"<< std::endl;
+    for (int i=0;i<NumberOfClients;i++){
+        occupancy[i]=micros[i].getPresence();
+        std::cout << occupancy[i] << ",";
+    }
+    std::cout << std::endl;
 }
 
 void sendBackgroundToClients(double background[NumberOfClients]){
@@ -480,6 +493,7 @@ void sendCouplingToClients(double coupling[][NumberOfClients]){
         for (int i=0;i<NumberOfClients;i++){ // column
             for (int n=0;n<NumberOfClients;n++){ // client
                 msg="C" + std::to_string(j) + std::to_string(i) + std::to_string(coupling[i][j]);
+                //if (n>0) break;
                 clients[n]->sendData(msg);
             }
         }
@@ -497,12 +511,14 @@ int main(int argc, char **argv)
 {
     std::string arg;
     int Mode = 0;
+
     if (argc == 2){
         testMode = true;
         arg = std::string(argv[1]);
         if (arg == "-t") Mode = 1;
         else if (arg == "-d") Mode = 2;
     }
+
     else if (argc > 2){
         std::cerr << "Usage: central <option>" << std::endl;
         std::cerr << "\t-t for test mode." << std::endl;
@@ -538,14 +554,14 @@ int main(int argc, char **argv)
 
    std::string addrs[NumberOfClients+1];
    // VB address
-   // addrs[0] = "192.168.56.102";
+    //addrs[0] = "192.168.56.102";
    // addrs[1] = "192.168.56.103";
-   //   addrs[2] = "192.168.56.104";
+   // addrs[2] = "192.168.56.104";
 
    // real address
    addrs[0] = "192.168.27.202";
    addrs[1] = "192.168.27.204";
-    addrs[2] = "192.168.27.203";
+   addrs[2] = "192.168.27.203";
    addrs[3] = "192.168.27.206";
    addrs[4] = "192.168.27.205";
    addrs[5] = "192.168.27.207";
@@ -557,9 +573,9 @@ int main(int argc, char **argv)
    int ports[NumberOfClients];
 
    // VB ports
-   //   ports[0]=17232;
-   // ports[1]=17233;
-   //ports[2]=17234;
+   //ports[0]=17231
+;   // ports[1]=17233;
+   // ports[2]=17234;
 
    // real ports
    ports[0]=17231;
@@ -584,15 +600,11 @@ int main(int argc, char **argv)
    //   udpClient central(io);
    std::cout << "\n\nInitial update...\n\n" << endl;
    updateStates();
+
    std::cout << "\n\nInitial update finished.\n\n" << endl;
+  updateOccupancy(occupancy);
 
    getBackgroundAndCoupling(coupling,background);
-
-   if (Mode == 2){
-       sendBackgroundToClients(background);
-       sendCouplingToClients(coupling);
-       return 1;
-   }
 
    // print background matrix
    std::cout << "\n\nOCCUPANCY MATRIX\n\n";
@@ -618,6 +630,13 @@ int main(int argc, char **argv)
      std::cout << std::endl;
    }
 
+   if (Mode == 2){
+       std::cout << "SENDING DATA TO CLIENTS..." << std::endl;
+       sendBackgroundToClients(background);
+       sendCouplingToClients(coupling);
+       return 1;
+   }
+
 
    for (;;){
 
@@ -640,5 +659,6 @@ int main(int argc, char **argv)
                clients[i]->queryServer(msg);
            }
        }
+       usleep(100000);
    }
 }
