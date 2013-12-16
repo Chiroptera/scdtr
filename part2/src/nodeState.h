@@ -45,7 +45,10 @@ class nodeState
     int myOccPos;
     Arduino micro1_; std::string add1;
     Arduino micro2_; std::string add2;
-    float occupancy_[8], background_[8], coupling_[8][8];
+    float background_[8], coupling_[8][8];
+    int occupancy_[8];
+    int backgroundCounter, couplingCounter;
+    bool ready_;
 };
 
 #endif

@@ -6,7 +6,9 @@
 #include "nodeState.h"
 
 nodeState::nodeState(int myPort, std::string neighbour1Add, std::string neighbour2Add)
-    : add1(neighbour1Add), add2(neighbour2Add)
+    : add1(neighbour1Add), add2(neighbour2Add),
+      backgroundCounter(0), couplingCounter(0),
+      ready_(false)
 
 {
     myOccPos = myPort % 10 - 1;
@@ -66,7 +68,8 @@ void nodeState::setBackground(std::string bck){
     int i = atoi(bck.substr(1,1).c_str());
     float value = atof(bck.substr(2,bck.back()).c_str());
     background_[i] = value;
-
+    backgroundCounter++;
+    if (backgroundCounter == 7 && couplingCounter == 63) ready_ = true;
 }
 
 float nodeState::getBackground(int pos){
@@ -78,6 +81,9 @@ void nodeState::setCoupling(std::string coup){
     int i = atoi(coup.substr(2,1).c_str());
     float value = atof(coup.substr(3,coup.back()).c_str());
     coupling_[j][i] = value;
+    couplingCounter++;
+    if (backgroundCounter == 7 && couplingCounter == 63) ready_ = true;
+
 }
 
 float nodeState::getCoupling(int line, int col){

@@ -22,6 +22,7 @@
 #define Lmin 	1	// Lum for empty desk
 #define Lmax 	10.9	// Lum for desk occupied
 
+
 using namespace boost::asio;
 using boost::asio::ip::udp;
 using namespace std;
@@ -100,7 +101,11 @@ private:
 std::vector<udpClient*> clients;
 
 
+/*
 
+SIMPLEX
+
+*/
 
 
 
@@ -397,7 +402,7 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
 			//tcpClients[i]->send("00");
       clients[i]->queryServer("00");
   }
-  usleep(100000);
+  usleep(1000000);
 
   // update for background data
   updateStates();
@@ -444,7 +449,7 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
 
     // restore LED i to 00
     clients[i]->queryServer("00");
-    //usleep(500000);
+    usleep(1000000);
     //tcpClients[i]->send("00");
   }
 
@@ -534,14 +539,14 @@ int main(int argc, char **argv)
 
    std::string addrs[NumberOfClients+1];
    // VB address
-   addrs[0] = "192.168.56.102";
-   addrs[1] = "192.168.56.103";
-   addrs[2] = "192.168.56.104";
+   // addrs[0] = "192.168.56.102";
+   // addrs[1] = "192.168.56.103";
+   //   addrs[2] = "192.168.56.104";
 
    // real address
-   // addrs[0] = "192.168.27.202";
-   // addrs[1] = "192.168.27.204";
-   // addrs[2] = "192.168.27.203";
+   addrs[0] = "192.168.27.202";
+   addrs[1] = "192.168.27.204";
+    addrs[2] = "192.168.27.203";
    addrs[3] = "192.168.27.206";
    addrs[4] = "192.168.27.205";
    addrs[5] = "192.168.27.207";
@@ -553,14 +558,14 @@ int main(int argc, char **argv)
    int ports[NumberOfClients];
 
    // VB ports
-   ports[0]=17232;
-   ports[1]=17233;
-   ports[2]=17234;
+   //   ports[0]=17232;
+   // ports[1]=17233;
+   //ports[2]=17234;
 
    // real ports
-   // ports[0]=17231;
-   // ports[1]=17232;
-   // ports[2]=17233;
+   ports[0]=17231;
+   ports[1]=17232;
+   ports[2]=17233;
    ports[3]=17234;
    ports[4]=17235;
    ports[5]=17236;
@@ -582,16 +587,13 @@ int main(int argc, char **argv)
    updateStates();
    std::cout << "\n\nInitial update finished.\n\n" << endl;
 
+   getBackgroundAndCoupling(coupling,background);
 
    if (Mode == 2){
        sendBackgroundToClients(background);
        sendCouplingToClients(coupling);
        return 1;
    }
-
-      updateOccupancy(occupancy);
-
-   getBackgroundAndCoupling(coupling,background);
 
    // print background matrix
    std::cout << "\n\nOCCUPANCY MATRIX\n\n";
@@ -619,6 +621,8 @@ int main(int argc, char **argv)
 
 
    for (;;){
+
+       updateOccupancy(occupancy);
 
        //compute optimal solution to opt_sol
        simplexDummy(coupling,background,occupancy);
