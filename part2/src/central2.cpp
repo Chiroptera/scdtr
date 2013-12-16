@@ -382,13 +382,12 @@ void updateStates(){
     std::string response = "";
 
     std::cout << "querying in client " << i << endl;
-    response = clients[i]->queryServer("");
+    response = clients[i]->queryServer("Z");
 		std::cout << "got response " << response << std::endl;
                 micros[i].set_parameters(std::string(response+" ").substr(0,11));
     //  micros[i].print();
     //occupancy[i]=micros[i].getPresence();
     i++;
-    if(i>2) break;
   }
   return;
 }
@@ -427,7 +426,7 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
     // change LED i to 01
     //tcpClients[i]->send("FF");
 		clients[i]->queryServer("FF");
-                //usleep(500000);
+                usleep(1000000);
 
     // update all info
     updateStates();
@@ -457,17 +456,18 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
 }
 
 void updateOccupancy(int occupancy[NumberOfClients]){
+	std::cout << "OCCUPANCY UPDATE"<< std::endl;
 	for (int i=0;i<NumberOfClients;i++){
 		occupancy[i]=micros[i].getPresence();
+		std::cout << occupancy[i] << ",";
 	}
-
+  std::cout << std::endl;
 }
 
 void sendBackgroundToClients(double background[NumberOfClients]){
     std::string msg;
     for (int j=0;j<NumberOfClients;j++){
         for (int i=0;i<NumberOfClients;i++){
-            if (i>2) break;
             msg="B" + std::to_string(j) + std::to_string(background[j]);
             clients[i]->sendData(msg);
         }
@@ -479,7 +479,6 @@ void sendCouplingToClients(double coupling[][NumberOfClients]){
     for (int j=0;j<NumberOfClients;j++){ // line
         for (int i=0;i<NumberOfClients;i++){ // column
             for (int n=0;n<NumberOfClients;n++){ // client
-                if (n>2) break;
                 msg="C" + std::to_string(j) + std::to_string(i) + std::to_string(coupling[i][j]);
                 clients[n]->sendData(msg);
             }
@@ -575,7 +574,7 @@ int main(int argc, char **argv)
    // fill communication containers with TCP and UDP client objects
    for (int i=0;i<NumberOfClients;i++){
        if (Mode == 1){
-           clients.push_back(new udpClient(io,"127.0.0.1",ports[i]));
+           clients.push_back(new udpClient(io,"192.168.27.201",ports[i]));
        }
        else{
            clients.push_back(new udpClient(io,addrs[i],ports[i]));

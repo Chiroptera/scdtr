@@ -8,7 +8,7 @@
 nodeState::nodeState(int myPort, std::string neighbour1Add, std::string neighbour2Add)
     : add1(neighbour1Add), add2(neighbour2Add),
       backgroundCounter(0), couplingCounter(0),
-      ready_(false)
+      ready_(false), toWrite_(false)
 
 {
     myOccPos = myPort % 10 - 1;
@@ -117,6 +117,9 @@ int nodeState::parseState(std::string msg, std::string sender){
     }
     else if (sender == add2){
         micro2_.set_parameters(msg);
+    }
+    else if(msg[0]=='Z'){
+        return 0;
     }
     else {
         return -1;

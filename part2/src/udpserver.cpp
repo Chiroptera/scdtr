@@ -27,7 +27,7 @@ udp_server::udp_server(boost::asio::io_service& io_service, int port_number,
       state_(state)
 
 {
-   start_receive();
+   //start_receive();
 }
 
 void udp_server::start_receive()
@@ -42,6 +42,7 @@ void udp_server::start_receive()
                                            boost::asio::placeholders::bytes_transferred));
                                // udp_server::handle_receive);
 }
+
 
 
 void udp_server::handle_receive(const boost::system::error_code& error, std::size_t bytes_transferred)
@@ -59,22 +60,25 @@ void udp_server::handle_receive(const boost::system::error_code& error, std::siz
 
        int parseResult = state_.parseState(data,senderAdd);
 
-       if (parseResult == -1){
+       if (parseResult == -1 || parseResult == 0){
 
        // parseResult returns -1 if it doesn't deal with the parsing automaticly
 
            boost::shared_ptr<std::string> message( new std::string(state_.micro_.getString()));
            socket_.async_send_to(boost::asio::buffer(*message), remote_endpoint_,
                                  boost::bind(&udp_server::handle_send, this, message, boost::asio::placeholders::error));
-
+                    }             
+        if (parseResult == -1) {
            //modify the state of the environment according to the received information
            std::string data = std::string(recv_buffer_.begin(),recv_buffer_.end());
            std::istringstream is(data);
            int val;
            is >> std::hex >> val;
            // std::cout << "Data received converted  is " << val << std::endl;
-           if(!is.fail())
-               std::cout << "WRITING TO ARDUINO " << val << std::endl;
+           if(!is.fail()){
+              state_.toWrite_=true;
+              state_.send[0]=data[0]; state_.send[1]=data[1];}
+               
        }
 
       start_receive();

@@ -340,6 +340,7 @@ public:
           io_service_(io_service),
           serialPort(io_service, device),
           state_(state)
+          
     {
         if (!serialPort.is_open())
         {
@@ -366,6 +367,7 @@ public:
             cout << "check what yp" << endl;
             cmd[0]=msg[0];
             cmd[1]=msg[1];
+            cmd[2]=' ';
             cout << "minicom.write: i got stuff " << cmd << " and length=" << strlen(cmd) << endl;
             io_service_.post(boost::bind(&minicom_client::do_write, this, cmd));
         }
@@ -400,8 +402,8 @@ private:
                 if (!error)
                 { // read completed, so process the data
                     //cout.write(read_msg_, bytes_transferred); // echo to standard output
-                    cout << "GOT STUFF " << read_msg_ << " BYTES: " << bytes_transferred << endl;
-                     if (bytes_transferred == 12){
+                    //cout << "GOT STUFF " << read_msg_ << " BYTES: " << bytes_transferred << endl;
+                     if (bytes_transferred == 13){
                          state_->micro_.set_parameters(std::string(&read_msg_[0],&read_msg_[11]));
                          state_->setMyOccupancy(state_->micro_.getPresence());
         }
@@ -468,7 +470,7 @@ private:
     boost::asio::io_service& io_service_; // the main IO service that runs this connection
     boost::asio::serial_port serialPort; // the serial port this instance is connected to
     char read_msg_[max_read_length]; // data read from the socket
-    char cmd[2];
+    char cmd[3];
     deque<char> write_msgs_; // buffered write data
     nodeState *state_;
 };
@@ -509,11 +511,13 @@ void taskEchoState(udpClient *client,nodeState *state,int mode)
     for(;;)
     {
         client->echo(state->micro_.getString());
-        client->echo(state->getOccString());
+        //client->echo(state->getOccString());
         usleep(100000);
     }
 
 }
+
+void taskServerUDP(udp_server *server){server->start_receive();}
 
 int main(int argc, char* argv[])
 {
@@ -535,7 +539,8 @@ int main(int argc, char* argv[])
         std::string neighborAddFirst, neighborAddSecond, token = ":";
         int mode;
 
-        if (argc < 4 || argc > 6 || argc == 5)
+        std::cout << "ARGS: " << argc << std::endl;
+        if (argc != 4 && argc != 6)
         {
             cerr << "Usage: minicom <baud> <device> <port>\n" << endl;
             cerr << "Usage: minicom <baud> <device> <port> <first neighbor adress:port> <second neighbor address:port>\n";
@@ -584,7 +589,7 @@ int main(int argc, char* argv[])
 
         udp_server server(io_service, myPort,state);
 
-        //        std::thread tIO(boost::bind(&boost::asio::io_service::run, &io_service)); // thread for running the io service
+        std::thread tIO(boost::bind(&boost::asio::io_service::run, &io_service)); // thread for running the io service
 
         udpClient cNeighbour1(io_service,neighbour1Add,neighbour1Port);
         udpClient cNeighbour2(io_service,neighbour2Add,neighbour2Port);
@@ -601,7 +606,12 @@ int main(int argc, char* argv[])
             cout << "\n\n=============== MY ARDUINO VALUES ===================" << endl;
             state.micro_.print();
 
-
+            if (state.toWrite_==true){
+                state.toWrite_=false;
+                c.write(state.send);
+            }
+             
+             
             if (mode==1)
             {
 

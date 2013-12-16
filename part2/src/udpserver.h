@@ -21,9 +21,9 @@ class udp_server
  public:
 
     udp_server(boost::asio::io_service& io_service, int port_number, nodeState& state);
-
- private:
     void start_receive();
+ private:
+
     void handle_receive(const boost::system::error_code& error, std::size_t bytes_transferred);
     void handle_send(boost::shared_ptr<std::string> msg, const boost::system::error_code& error);
     udp::socket socket_;

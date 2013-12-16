@@ -49,6 +49,8 @@ class nodeState
     int occupancy_[8];
     int backgroundCounter, couplingCounter;
     bool ready_;
+    bool toWrite_;
+    char send[2];
 };
 
 #endif
