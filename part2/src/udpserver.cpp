@@ -16,15 +16,16 @@ All rights reserved
 #include "threadhello.h"
 #include "udpserver.h"
 #include "nodeState.h"
+#include "minicomnClass.h"
 
 using boost::asio::ip::udp;
 
 udp_server::udp_server(boost::asio::io_service& io_service, int port_number,
-                       nodeState& state)
+                       nodeState& state, minicom_client *c)
 
 
     : socket_(io_service, udp::endpoint(udp::v4(), port_number)),
-      state_(state)
+      state_(state), c_(c)
 
 {
    //start_receive();
@@ -80,8 +81,10 @@ void udp_server::handle_receive(const boost::system::error_code& error, std::siz
            // std::cout << "Data received converted  is " << val << std::endl;
            if(!is.fail())
            {
-               state_.toWrite_=true;
-               state_.send[0]=data[0]; state_.send[1]=data[1];
+               // state_.toWrite_=true;
+               char send[2];
+               send[0]=data[0]; send[1]=data[1];
+               c_->write(send);
            }
         }
 

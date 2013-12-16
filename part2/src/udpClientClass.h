@@ -1,3 +1,7 @@
+# ifndef UDPCLIENTCLASS_H
+# define UDPCLIENTCLASS_H
+
+
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <thread>
@@ -21,3 +25,5 @@ public:
     std::string _addr;
     int _port;
 };
+
+#endif

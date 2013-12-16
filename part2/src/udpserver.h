@@ -1,3 +1,7 @@
+# ifndef UDPSERVER_H
+# define UDPSERVER_H
+
+
 /**********************************
 Copyright ACSDC/DEEC TECNICO LISBOA
 alex@isr.ist.utl.pt
@@ -13,6 +17,7 @@ All rights reserved
 #include <boost/asio.hpp>
 #include "threadhello.h"
 #include "nodeState.h"
+#include "minicomnClass.h"
 
 using boost::asio::ip::udp;
 
@@ -20,7 +25,7 @@ class udp_server
 {
  public:
 
-    udp_server(boost::asio::io_service& io_service, int port_number, nodeState& state);
+    udp_server(boost::asio::io_service& io_service, int port_number, nodeState& state, minicom_client *c);
     void start_receive();
  private:
 
@@ -29,5 +34,8 @@ class udp_server
     udp::socket socket_;
     udp::endpoint remote_endpoint_;
     boost::array<char, 128> recv_buffer_;
-nodeState& state_;
+    nodeState& state_;
+    minicom_client *c_;
 };
+
+#endif
