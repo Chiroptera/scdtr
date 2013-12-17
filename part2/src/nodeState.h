@@ -28,7 +28,7 @@ class nodeState
     std::string getStringN2();
     void setParametersN2(std::string state);
 
-    void setMyOccupancy(int occ);
+    void setMyOccupancy();
     void setOccupancy(std::string occ);
     int getOccupancy(int pos);
 

@@ -540,27 +540,11 @@ int main(int argc, char **argv)
    double commands[NumberOfClients];
 
 
-   /*
-
-     FILL THE MATRICES WITH DUMMY VALUES
-
-    */
-
-   // for(int i=0; i<NumberOfClients; i++){
-   //     for(int j=0; j<NumberOfClients; j++){
-   //         if(i==j) coupling[i][j]=1000;
-   //         else     coupling[i][j]=100;
-   //     }
-   // }
-
-   // for(int i=0;i<NumberOfClients;i++){
-   //     background[i]=i*0.001;
-   // }
 
 
    std::string addrs[NumberOfClients+1];
    // VB address
-    addrs[0] = "192.168.56.102";
+    addrs[0] = "192.168.56.101";
    // addrs[1] = "192.168.56.103";
    // addrs[2] = "192.168.56.104";
 
@@ -602,6 +586,24 @@ int main(int argc, char **argv)
            clients.push_back(new udpClient(io,addrs[i],ports[i]));
        }
    }
+
+   /*
+
+     FILL THE MATRICES WITH DUMMY VALUES
+
+   */
+
+   for(int i=0; i<NumberOfClients; i++){
+       for(int j=0; j<NumberOfClients; j++){
+           if(i==j) coupling[i][j]=1000;
+           else     coupling[i][j]=100;
+       }
+   }
+
+   for(int i=0;i<NumberOfClients;i++){
+       background[i]=i*0.001;
+   }
+
 
    //   udpClient central(io);
    std::cout << "\n\nInitial update...\n\n" << endl;

@@ -47,9 +47,13 @@ void nodeState::setParametersN2(std::string state){
     micro2_.set_parameters(state);
 }
 
-void nodeState::setMyOccupancy(int occ){
-    if (occ != 0 || occ != 1) return;
-    occupancy_[myOccPos]=occ;
+void nodeState::setMyOccupancy(){
+    std::cout << "INSIDE SETMYOCCUPANCY I HAVE PRESENCE " << micro_.getPresence() << std::endl;
+    std::cout << "MYOCCPOS IS " << myOccPos << std::endl;
+
+    occupancy_[myOccPos]=micro_.getPresence();
+
+    std::cout << "INSIDE OCCUPANCY VECTOR IN MYOCCPOS IS " << occupancy_[myOccPos] << std::endl;
 }
 
 void nodeState::setOccupancy(std::string occ){

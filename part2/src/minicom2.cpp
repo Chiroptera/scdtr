@@ -376,6 +376,7 @@ void taskServerUDP(udp_server *server)
     server->start_receive();
 }
 
+
 int main(int argc, char* argv[])
 {
     // on Unix POSIX based systems, turn off line buffering of input, so cin.get() returns after every keypress
@@ -493,22 +494,27 @@ int main(int argc, char* argv[])
                 cout << "\n\n=============== NEIGHBOUR #2 VALUES ===================" << endl;
                 state.micro2_.print();
 
-                cout << "\n\nCOUPLING" << endl;
+                cout << "\n\nOCCUPANCY" << endl;
+                cout << " my occ is " << state.micro_.getPresence() << endl;
+                for (int i=0;i<8;i++){cout << state.getOccupancy(i) << ",";}
+                cout << endl;
+
+                cout << "\nCOUPLING" << endl;
                 for (int i=0;i<8;i++)
                 {
                     for (int j=0;j<8;j++)
                     {
-                        cout << state.coupling_[i][j] << ",";
+                        cout << state.getCoupling(i,j) << ",";
                     }
                     cout << endl;
                 }
 
                 cout << "\n\nBACKGROUND" << endl;
-                for (int i=0;i<8;i++){cout << state.background_[i] << ",";}
+                for (int i=0;i<8;i++){cout << state.getBackground(i) << ",";}
                 cout << endl;
             }
 
-            usleep(2000000);
+            usleep(1000000);
 
         }
 

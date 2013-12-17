@@ -93,12 +93,12 @@ void minicom_client::read_complete(const boost::system::error_code& error, size_
             //cout << "GOT STUFF " << read_msg_ << " BYTES: " << bytes_transferred << endl;
             if (bytes_transferred == 13){
                 state_->micro_.set_parameters(std::string(&read_msg_[0],&read_msg_[11]));
-                state_->setMyOccupancy(state_->micro_.getPresence());
+                state_->setMyOccupancy();
+                read_start(); // start waiting for another asynchronous read again
             }
-            read_start(); // start waiting for another asynchronous read again
+            else
+                do_close(error);
         }
-        else
-            do_close(error);
     }
 
 void minicom_client::do_write(char *msg)
@@ -107,8 +107,8 @@ void minicom_client::do_write(char *msg)
         // for(unsigned int i=0;i<strlen(msg);i++){
         //     write_msgs_.push_back(msg[i]); // store in write buffer
         // }
-std::cout << "minicom.do_write: i got stuff " << cmd << std::endl;
-std::cout << "pushing " << msg << std::endl;
+        std::cout << "minicom.do_write: i got stuff " << cmd << std::endl;
+        std::cout << "pushing " << msg << std::endl;
         write_msgs_.push_back(msg[0]);
         write_msgs_.push_back(msg[1]);
         write_msgs_.push_back(msg[3]);
