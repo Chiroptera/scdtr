@@ -408,8 +408,8 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
     std::cout << "\n\n Sending 00 to all clients... \n\n" << std::endl;
     for (int i=0;i<NumberOfClients;i++){
         if (i>0) break;
-        clients[i]->queryServer("00");
-        clients[i]->queryServer("00");
+        clients[i]->queryServer("V00");
+        clients[i]->queryServer("V00");
     }
     usleep(1000000);
 
@@ -440,8 +440,8 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
 
         std::cout << "\n\n Desk " << i+1 << ": turning on... \n" << std::endl;
         // change LED i to 01
-        clients[i]->queryServer("FF");
-        clients[i]->queryServer("FF");
+        clients[i]->queryServer("VFF");
+        clients[i]->queryServer("VFF");
         usleep(1000000);
 
         // update all info
@@ -466,8 +466,8 @@ void getBackgroundAndCoupling(double coupling[][NumberOfClients],double backgrou
 
         // restore LED i to 00
         std::cout << "\n Desk " << i+1 << ": turning off... \n" << std::endl;
-        clients[i]->queryServer("00");
-        clients[i]->queryServer("00");
+        clients[i]->queryServer("V00");
+        clients[i]->queryServer("V00");
         usleep(1000000);
     }
 

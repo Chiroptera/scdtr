@@ -423,6 +423,7 @@ int main(int argc, char* argv[])
             std::cout << "Neighbour 1\nPort:\t" << neighbour1Port << "\tAddress:\t" << neighbour1Add << std::endl;
             std::cout << "Neighbour 2\nPort:\t" << neighbour2Port << "\tAddress:\t" << neighbour2Add << std::endl;
 
+
         }
         // if there are 4 arguments then we're in centralized mode
         else if (argc == 4){
@@ -494,10 +495,6 @@ int main(int argc, char* argv[])
                 cout << "\n\n=============== NEIGHBOUR #2 VALUES ===================" << endl;
                 state.micro2_.print();
 
-                cout << "\n\nOCCUPANCY" << endl;
-                cout << " my occ is " << state.micro_.getPresence() << endl;
-                for (int i=0;i<8;i++){cout << state.getOccupancy(i) << ",";}
-                cout << endl;
 
                 cout << "\nCOUPLING" << endl;
                 for (int i=0;i<8;i++)
@@ -513,6 +510,12 @@ int main(int argc, char* argv[])
                 for (int i=0;i<8;i++){cout << state.getBackground(i) << ",";}
                 cout << endl;
             }
+
+            cout << "\n\nOCCUPANCY" << endl;
+            cout << " my occ is " << state.micro_.getPresence() << endl;
+            for (int i=0;i<8;i++){cout << state.getOccupancy(i) << ",";}
+            cout << endl;
+
 
             usleep(1000000);
 

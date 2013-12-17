@@ -48,12 +48,12 @@ void nodeState::setParametersN2(std::string state){
 }
 
 void nodeState::setMyOccupancy(){
-    std::cout << "INSIDE SETMYOCCUPANCY I HAVE PRESENCE " << micro_.getPresence() << std::endl;
-    std::cout << "MYOCCPOS IS " << myOccPos << std::endl;
+    //std::cout << "INSIDE SETMYOCCUPANCY I HAVE PRESENCE " << micro_.getPresence() << std::endl;
+    //std::cout << "MYOCCPOS IS " << myOccPos << std::endl;
 
     occupancy_[myOccPos]=micro_.getPresence();
 
-    std::cout << "INSIDE OCCUPANCY VECTOR IN MYOCCPOS IS " << occupancy_[myOccPos] << std::endl;
+    //std::cout << "INSIDE OCCUPANCY VECTOR IN MYOCCPOS IS " << occupancy_[myOccPos] << std::endl;
 }
 
 void nodeState::setOccupancy(std::string occ){
@@ -104,7 +104,14 @@ std::string nodeState::getOccString(){
 }
 
 int nodeState::parseState(std::string msg, std::string sender){
-    if (msg[0] == 'O'){
+    if(msg[0]=='Z'){
+        std::cout << "I GOT Z " << std::endl;
+        return 0;
+    }
+    else if(msg[0]=='V'){
+        return 1;
+    }
+    else if (msg[0] == 'O'){
         std::cout << "GOT OCCUPANCY " << msg << "FROM " << sender << std::endl;
         setOccupancy(msg);
     }
@@ -122,12 +129,8 @@ int nodeState::parseState(std::string msg, std::string sender){
     else if (sender == add2){
         micro2_.set_parameters(msg);
     }
-    else if(msg[0]=='Z'){
-        return 0;
-    }
-    else {
+    else
+    {
         return -1;
     }
-
-    return 0;
 }

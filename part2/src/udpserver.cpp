@@ -26,8 +26,8 @@ udp_server::udp_server(boost::asio::io_service& io_service, int port_number,
 
     : socket_(io_service, udp::endpoint(udp::v4(), port_number)),
       state_(state), c_(c)
-
 {
+
    //start_receive();
 }
 
@@ -56,12 +56,35 @@ void udp_server::handle_receive(const boost::system::error_code& error, std::siz
 
        // get sender address
        std::string senderAdd = remote_endpoint_.address().to_string();
-       // std::cout << "DATA RECEIVED FROM " << senderAdd << std::endl;
-       // std::cout << "BYTES RECEIVED: " << bytes_transferred << "DATA: " << data << std::endl;
 
        int parseResult = state_.parseState(data,senderAdd);
+       std::cout << "DATA RECEIVED FROM " << senderAdd << std::endl;
 
-       if (parseResult == -1 || parseResult == 0)
+
+       if (parseResult == 1) {
+
+           std::cout << "BYTES RECEIVED: " << bytes_transferred << "DATA: " << data << std::endl;
+
+
+           //modify the state of the environment according to the received information
+           std::string data = std::string(recv_buffer_.begin(),recv_buffer_.end());
+           std::istringstream is(data);
+           int val;
+           is >> std::hex >> val;
+           // std::cout << "Data received converted  is " << val << std::endl;
+
+           // state_.toWrite_=true;
+           std::cout << "SENDING TO SERIAL" << std::endl;
+           char send[2];
+           send[0]=data[1]; send[1]=data[2];
+           c_->write(send);
+
+           if(!is.fail())
+           {
+           }
+        }
+
+       if (parseResult == -1 || parseResult == 0 || parseResult == 1)
        {
 
            // parseResult returns -1 if it doesn't deal with the parsing automaticly
@@ -71,22 +94,6 @@ void udp_server::handle_receive(const boost::system::error_code& error, std::siz
                                  boost::bind(&udp_server::handle_send, this, message, boost::asio::placeholders::error));
        }
 
-       if (parseResult == -1) {
-
-           //modify the state of the environment according to the received information
-           std::string data = std::string(recv_buffer_.begin(),recv_buffer_.end());
-           std::istringstream is(data);
-           int val;
-           is >> std::hex >> val;
-           // std::cout << "Data received converted  is " << val << std::endl;
-           if(!is.fail())
-           {
-               // state_.toWrite_=true;
-               char send[2];
-               send[0]=data[0]; send[1]=data[1];
-               c_->write(send);
-           }
-        }
 
       start_receive();
    }

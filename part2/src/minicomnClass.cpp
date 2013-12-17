@@ -86,20 +86,21 @@ void minicom_client::read_start(void)
     }
 
 void minicom_client::read_complete(const boost::system::error_code& error, size_t bytes_transferred)
-    { // the asynchronous read operation has now completed or failed and returned an error
-        if (!error)
-        { // read completed, so process the data
-            //cout.write(read_msg_, bytes_transferred); // echo to standard output
-            //cout << "GOT STUFF " << read_msg_ << " BYTES: " << bytes_transferred << endl;
-            if (bytes_transferred == 13){
-                state_->micro_.set_parameters(std::string(&read_msg_[0],&read_msg_[11]));
-                state_->setMyOccupancy();
-                read_start(); // start waiting for another asynchronous read again
-            }
-            else
-                do_close(error);
+{ // the asynchronous read operation has now completed or failed and returned an error
+    if (!error)
+    { // read completed, so process the data
+        //cout.write(read_msg_, bytes_transferred); // echo to standard output
+        //cout << "GOT STUFF " << read_msg_ << " BYTES: " << bytes_transferred << endl;
+
+        if (bytes_transferred == 13){
+            state_->micro_.set_parameters(std::string(&read_msg_[0],&read_msg_[11]));
+            state_->setMyOccupancy();
         }
+        read_start(); // start waiting for another asynchronous read again
     }
+    else  do_close(error);
+}
+
 
 void minicom_client::do_write(char *msg)
     { // callback to handle write call from outside this class
